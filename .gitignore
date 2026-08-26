@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+next-env.d.ts
+
+# TypeScript incremental build info
+*.tsbuildinfo
+
+# Hardhat
+artifacts/
+cache/
+typechain-types/
+dist/
+
+# Env
+.env
+.env.local
+.env*.local
+
+# Logs
+npm-debug.log*
+*.log
+
+# OS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+
+# Test coverage
+coverage/
