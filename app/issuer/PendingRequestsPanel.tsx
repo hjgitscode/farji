@@ -4,8 +4,8 @@ import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { getOrganisationById } from "@/lib/services/organisationService";
-import { placeholderHex } from "@/lib/mock-data/mockHex";
 import { canonicaliseCredential } from "@/lib/crypto/canonicalise";
+import { hashCredential } from "@/lib/crypto/hash";
 import { toCanonicalInput } from "@/lib/crypto/fromMockCredential";
 import type { Credential } from "@/lib/mock-data/types";
 
@@ -64,8 +64,7 @@ export function PendingRequestsPanel({ initialPending }: { initialPending: Crede
                 {canonicalPreview(credential)}
               </pre>
               <p className="mt-2 font-mono text-xs text-slate-500">
-                Keccak-256 (placeholder — real hashing arrives in Phase 4):{" "}
-                {truncateHex(placeholderHex(credential.credentialId))}
+                Keccak-256: {truncateHex(hashCredential(toCanonicalInput(credential)))}
               </p>
             </details>
           </Card>

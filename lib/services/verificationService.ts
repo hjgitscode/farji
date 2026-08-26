@@ -3,14 +3,15 @@ import { getOrganisationById } from "@/lib/services/organisationService";
 import { isIssuerValidAt } from "@/lib/services/issuerService";
 import { getAttestationById, getLatestAttestation } from "@/lib/services/attestationService";
 import { placeholderHex } from "@/lib/mock-data/mockHex";
+import { hashCredential } from "@/lib/crypto/hash";
+import { toCanonicalInput } from "@/lib/crypto/fromMockCredential";
 import type { Credential, CredentialState, Organisation } from "@/lib/mock-data/types";
 
 // Builds the aggregated report the public recruiter verification page
-// renders. In Review 2 every underlying check is read from mock data;
-// from Phase 4 onward the "technicalProof" values become real Keccak-256
-// hashes, EIP-712 signatures, and Merkle proofs, and the boolean checks
-// become real cryptographic verification — but this function's shape,
-// and therefore the UI built against it, does not need to change.
+// renders. claimHash is real Keccak-256 as of Phase 4; signature and
+// merkleProof are still placeholders until Phases 5 and 8 respectively —
+// but this function's shape, and therefore the UI built against it,
+// does not need to change as each becomes real.
 
 export interface TechnicalProof {
   claimHash: string;
@@ -70,7 +71,7 @@ export function buildVerificationResult(credentialId: string): VerificationResul
   const technicalProof: TechnicalProof | null = notYetSigned
     ? null
     : {
-        claimHash: placeholderHex(credential.credentialId),
+        claimHash: hashCredential(toCanonicalInput(credential)),
         issuerWallet: credential.issuerWallet as string,
         signature: placeholderHex(`sig-${credential.credentialId}`),
         merkleRoot: relevantAttestation?.batchRoot ?? null,
