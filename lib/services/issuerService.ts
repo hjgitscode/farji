@@ -27,3 +27,8 @@ export function isIssuerValidAt(wallet: string, atDate: string): boolean {
 export function getPendingCredentials(): Credential[] {
   return credentials.filter((c) => c.state === "PENDING");
 }
+
+/** The wallet currently authorised to sign on behalf of an organisation, if any. */
+export function getActiveIssuerWallet(organisationId: string): IssuerKeyRecord | undefined {
+  return issuerKeyHistory.find((r) => r.organisationId === organisationId && r.status === "ACTIVE");
+}

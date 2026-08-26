@@ -1,3 +1,4 @@
+import { DEMO_WALLETS } from "@/lib/crypto/demoWallets";
 import type { Credential } from "./types";
 
 // The Review 2 demo scenario, matching the project spec exactly:
@@ -18,7 +19,7 @@ export const credentials: Credential[] = [
     startDate: "2022-08-01",
     endDate: "2026-06-01",
     state: "PERMANENT_VALID",
-    issuerWallet: "0x1111111111111111111111111111111111d001",
+    issuerWallet: DEMO_WALLETS.IITD.address,
     cohortEpochId: "COHORT-IITD-2026-1",
   },
   {
@@ -35,7 +36,7 @@ export const credentials: Credential[] = [
     state: "CURRENTLY_ATTESTED",
     // Signed by XYZ's original wallet, later rotated (see issuerKeys.ts).
     // Still valid because the wallet was authorised on 2026-06-15.
-    issuerWallet: "0x2222222222222222222222222222222222a001",
+    issuerWallet: DEMO_WALLETS.XYZ_ORIGINAL.address,
     proofPulseStreamId: "PROOFPULSE-XYZ",
   },
   {
@@ -50,7 +51,7 @@ export const credentials: Credential[] = [
     startDate: "2026-02-01",
     endDate: "2027-02-01",
     state: "VERIFIED",
-    issuerWallet: "0x3333333333333333333333333333333333c001",
+    issuerWallet: DEMO_WALLETS.ABC.address,
   },
   {
     credentialId: "CRED-004",
@@ -64,7 +65,7 @@ export const credentials: Credential[] = [
     startDate: "2025-01-01",
     endDate: "2026-06-01",
     state: "ENDED",
-    issuerWallet: "0x4444444444444444444444444444444444e001",
+    issuerWallet: DEMO_WALLETS.PQR.address,
   },
   {
     credentialId: "CRED-005",
@@ -78,7 +79,7 @@ export const credentials: Credential[] = [
     startDate: "2024-05-01",
     endDate: "2024-07-31",
     state: "REVOKED",
-    issuerWallet: "0x4444444444444444444444444444444444e001",
+    issuerWallet: DEMO_WALLETS.PQR.address,
   },
   {
     credentialId: "CRED-101",

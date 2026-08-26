@@ -1,3 +1,4 @@
+import { DEMO_WALLETS } from "@/lib/crypto/demoWallets";
 import type { Attestation } from "./types";
 import { mockHex as hex, GENESIS_ROOT } from "./mockHex";
 
@@ -17,7 +18,7 @@ export const attestations: Attestation[] = [
     previousChainRoot: GENESIS_ROOT,
     chainRoot: hex("a2"),
     anchoredAt: "2026-06-05",
-    issuerWallet: "0x1111111111111111111111111111111111d001",
+    issuerWallet: DEMO_WALLETS.IITD.address,
   },
   {
     attestationId: "PROOFPULSE-XYZ-2026-08",
@@ -30,7 +31,10 @@ export const attestations: Attestation[] = [
     previousChainRoot: GENESIS_ROOT,
     chainRoot: hex("b2"),
     anchoredAt: "2026-08-01",
-    issuerWallet: "0x2222222222222222222222222222222222a002",
+    // XYZ's key rotation happens Jan 2027 (see issuerKeys.ts) — both this
+    // epoch and September's are anchored before that, so they're signed
+    // by the original wallet, not the post-rotation one.
+    issuerWallet: DEMO_WALLETS.XYZ_ORIGINAL.address,
   },
   {
     attestationId: "PROOFPULSE-XYZ-2026-09",
@@ -49,6 +53,6 @@ export const attestations: Attestation[] = [
     previousChainRoot: hex("b2"),
     chainRoot: hex("c2"),
     anchoredAt: "2026-09-01",
-    issuerWallet: "0x2222222222222222222222222222222222a002",
+    issuerWallet: DEMO_WALLETS.XYZ_ORIGINAL.address,
   },
 ];

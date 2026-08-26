@@ -1,3 +1,4 @@
+import { DEMO_WALLETS } from "@/lib/crypto/demoWallets";
 import type { IssuerKeyRecord } from "./types";
 
 // Demonstrates the key-rotation scenario from the project spec:
@@ -5,38 +6,43 @@ import type { IssuerKeyRecord } from "./types";
 // then rotated. A credential signed in June 2026 (CRED-002) stays valid
 // "at issuance time" under the old wallet even though that wallet is now
 // revoked — see docs/ARCHITECTURE.md section 7.
+//
+// Wallet addresses come from lib/crypto/demoWallets.ts (well-known public
+// Hardhat test accounts) so that Phase 5's real EIP-712 signing actually
+// recovers a signer address that matches what this registry says is
+// authorised.
 export const issuerKeyHistory: IssuerKeyRecord[] = [
   {
     organisationId: "ORG-IITD",
-    wallet: "0x1111111111111111111111111111111111d001",
+    wallet: DEMO_WALLETS.IITD.address,
     validFrom: "2026-01-01",
     validUntil: null,
     status: "ACTIVE",
   },
   {
     organisationId: "ORG-XYZ",
-    wallet: "0x2222222222222222222222222222222222a001",
+    wallet: DEMO_WALLETS.XYZ_ORIGINAL.address,
     validFrom: "2026-01-01",
     validUntil: "2027-01-01",
     status: "REVOKED",
   },
   {
     organisationId: "ORG-XYZ",
-    wallet: "0x2222222222222222222222222222222222a002",
+    wallet: DEMO_WALLETS.XYZ_ROTATED.address,
     validFrom: "2027-01-01",
     validUntil: null,
     status: "ACTIVE",
   },
   {
     organisationId: "ORG-ABC",
-    wallet: "0x3333333333333333333333333333333333c001",
+    wallet: DEMO_WALLETS.ABC.address,
     validFrom: "2026-01-01",
     validUntil: null,
     status: "ACTIVE",
   },
   {
     organisationId: "ORG-PQR",
-    wallet: "0x4444444444444444444444444444444444e001",
+    wallet: DEMO_WALLETS.PQR.address,
     validFrom: "2023-01-01",
     validUntil: null,
     status: "ACTIVE",
