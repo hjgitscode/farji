@@ -4,11 +4,14 @@ import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { MerkleTreeVisual } from "@/components/merkle/MerkleTreeVisual";
-import { placeholderHex } from "@/lib/mock-data/mockHex";
+import { hashCredential } from "@/lib/crypto/hash";
+import { MerkleTree } from "@/lib/merkle";
+import type { CanonicalCredentialInput } from "@/lib/crypto/types";
 
 interface Item {
   id: string;
   label: string;
+  claim: CanonicalCredentialInput;
 }
 
 interface BatchCreationPanelProps {
@@ -17,10 +20,10 @@ interface BatchCreationPanelProps {
   items: Item[];
 }
 
-// Lets the issuer select mock credentials and simulate creating a Merkle
-// batch (CohortProof or ProofPulse). The resulting root is a placeholder —
-// the real Merkle engine arrives in Phase 8, and anchoring it on-chain
-// arrives in Phase 6/9/10.
+// Lets the issuer select mock credentials and build a real Merkle batch
+// (CohortProof or ProofPulse) from lib/merkle. Anchoring this root
+// on-chain requires the deployed contract (Phase 6) — that wiring is
+// deferred; this panel demonstrates the off-chain half of the flow.
 export function BatchCreationPanel({ title, actionLabel, items }: BatchCreationPanelProps) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [created, setCreated] = useState<{ batchRoot: string; anchoredAt: string } | null>(null);
@@ -36,8 +39,12 @@ export function BatchCreationPanel({ title, actionLabel, items }: BatchCreationP
 
   function handleCreate() {
     if (selected.size === 0) return;
+    const selectedItems = items.filter((item) => selected.has(item.id));
+    const leafHashes = selectedItems.map((item) => hashCredential(item.claim));
+    const tree = new MerkleTree(leafHashes);
+
     setCreated({
-      batchRoot: placeholderHex([...selected].sort().join("-")),
+      batchRoot: tree.root,
       anchoredAt: new Date().toISOString().slice(0, 10),
     });
   }

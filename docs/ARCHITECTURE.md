@@ -140,15 +140,22 @@ struct RevocationRecord {
 ```solidity
 mapping(bytes32 => Organisation) public organisations;
 mapping(address => IssuerKeyRecord) public issuerRecords;
-mapping(bytes32 => address[]) public issuerWalletsByOrg;
-mapping(bytes32 => mapping(uint8 => bytes32)) public currentChainRoot;
-mapping(bytes32 => mapping(uint8 => mapping(uint64 => Attestation))) public attestations;
-mapping(bytes32 => mapping(uint8 => uint64[])) public epochsByOrgAndType;
+mapping(bytes32 => address[]) private issuerWalletsByOrg; // exposed via getIssuerHistory()
+mapping(bytes32 => mapping(AttestationType => bytes32)) private currentChainRoot; // exposed via getCurrentChainRoot()
+mapping(bytes32 => mapping(AttestationType => mapping(uint64 => Attestation))) private attestations; // exposed via getAttestation()
+mapping(bytes32 => mapping(AttestationType => uint64[])) private epochsByOrgAndType; // exposed via getEpochs()
 mapping(bytes32 => RevocationRecord) public revocations;
 ```
+Using `AttestationType` directly as a mapping key (rather than casting to
+`uint8`) is type-safe and just as cheap — Solidity stores an enum as its
+underlying integer either way. The array-valued mappings are kept
+`private` with a dedicated view function each, because a `public`
+mapping of arrays only lets you fetch one element at a time, not the
+whole array.
 
 ### Events
 ```solidity
+event OrganisationRegistered(bytes32 indexed organisationId, string name);
 event IssuerAuthorised(bytes32 indexed organisationId, address indexed wallet, uint64 validFrom);
 event IssuerRevoked(bytes32 indexed organisationId, address indexed wallet, uint64 revokedAt);
 event IssuerKeyRotated(bytes32 indexed organisationId, address indexed oldWallet, address indexed newWallet, uint64 rotatedAt);
@@ -167,10 +174,18 @@ for the organisation it claims):
 
 **Public views:**
 `isIssuerValidAt`, `isCredentialRevoked`, `getAttestation`,
-`getCurrentChainRoot`, `getIssuerHistory`.
+`getCurrentChainRoot`, `getEpochs`, `getIssuerHistory`.
 
-Full function-by-function rationale lives in `docs/SOLIDITY_EXPLANATION.md`
-(written in Phase 14, once the contract exists).
+**Known Review 2 simplification:** the contract never records which
+organisation a given `credentialId` belongs to (credential content,
+including ownership, lives entirely off-chain by design). So
+`revokeCredential` only checks that the caller is *some* currently
+authorised issuer, not specifically the issuer of that credential.
+Review 3 could add a `credentialOwner` mapping, populated when a
+credential's batch is anchored, to restrict revocation to the issuing
+organisation.
+
+Full function-by-function rationale lives in `docs/SOLIDITY_EXPLANATION.md`.
 
 ## 7. Data flows
 

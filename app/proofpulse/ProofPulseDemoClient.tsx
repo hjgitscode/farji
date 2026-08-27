@@ -5,31 +5,27 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { StatusBadge } from "@/components/credential/StatusBadge";
 import { MerkleTreeVisual } from "@/components/merkle/MerkleTreeVisual";
-import {
-  augustLeaves,
-  septemberLeaves,
-  augustAttestation,
-  septemberAttestation,
-} from "@/lib/mock-data/proofPulseDemo";
+import { buildProofPulseBatches } from "@/lib/services/proofPulseService";
 
 export function ProofPulseDemoClient() {
   const [employmentEnded, setEmploymentEnded] = useState(false);
+  const { august, september } = buildProofPulseBatches();
 
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <MerkleTreeVisual
-          title={augustAttestation.label}
-          leaves={augustLeaves}
-          batchRoot={augustAttestation.batchRoot}
-          anchoredAt={augustAttestation.anchoredAt}
+          title={august.label}
+          leaves={august.leaves}
+          batchRoot={august.root}
+          anchoredAt={august.anchoredAt}
           highlightLeafId="PP-B"
         />
         <MerkleTreeVisual
-          title={septemberAttestation.label}
-          leaves={septemberLeaves}
-          batchRoot={septemberAttestation.batchRoot}
-          anchoredAt={septemberAttestation.anchoredAt}
+          title={september.label}
+          leaves={september.leaves}
+          batchRoot={september.root}
+          anchoredAt={september.anchoredAt}
         />
       </div>
 
