@@ -1,5 +1,6 @@
 import { candidates } from "@/lib/mock-data/candidates";
 import { credentials } from "@/lib/mock-data/credentials";
+import { withComputedState } from "@/lib/services/credentialStateService";
 import type { Candidate, Credential } from "@/lib/mock-data/types";
 
 export function getCandidates(): Candidate[] {
@@ -11,13 +12,14 @@ export function getCandidateById(candidateId: string): Candidate | undefined {
 }
 
 export function getCredentialsByCandidate(candidateId: string): Credential[] {
-  return credentials.filter((c) => c.candidateId === candidateId);
+  return credentials.filter((c) => c.candidateId === candidateId).map(withComputedState);
 }
 
 export function getCredentialById(credentialId: string): Credential | undefined {
-  return credentials.find((c) => c.credentialId === credentialId);
+  const credential = credentials.find((c) => c.credentialId === credentialId);
+  return credential && withComputedState(credential);
 }
 
 export function getAllCredentials(): Credential[] {
-  return credentials;
+  return credentials.map(withComputedState);
 }

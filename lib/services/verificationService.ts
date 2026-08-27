@@ -2,16 +2,25 @@ import { getCredentialById } from "@/lib/services/candidateService";
 import { getOrganisationById } from "@/lib/services/organisationService";
 import { isIssuerValidAt } from "@/lib/services/issuerService";
 import { getAttestationById, getLatestAttestation } from "@/lib/services/attestationService";
+import { getIssuanceReferenceDate } from "@/lib/services/credentialStateService";
 import { placeholderHex } from "@/lib/mock-data/mockHex";
 import { hashCredential } from "@/lib/crypto/hash";
 import { toCanonicalInput } from "@/lib/crypto/fromMockCredential";
 import type { Credential, CredentialState, Organisation } from "@/lib/mock-data/types";
 
 // Builds the aggregated report the public recruiter verification page
-// renders. claimHash is real Keccak-256 as of Phase 4; signature and
-// merkleProof are still placeholders until Phases 5 and 8 respectively —
-// but this function's shape, and therefore the UI built against it,
-// does not need to change as each becomes real.
+// renders. `credential` (and therefore `currentState`) already carries
+// the real, derived lifecycle state — candidateService.getCredentialById
+// runs every credential through the Phase 12 state machine before this
+// function ever sees it. claimHash is real Keccak-256 (Phase 4), and
+// issuerAuthorisedAtIssuance is a real historical-validity check (Phase
+// 7). merkleRoot/chainRoot below are the real, already-anchored values
+// from lib/mock-data/attestations — but merkleProof and signature stay
+// illustrative placeholders here: regenerating a genuine proof for an
+// arbitrary credential would require full claim data for every other
+// member of its historical batch, which this general-purpose dataset
+// doesn't carry. See /cohortproof and /proofpulse for a fully worked,
+// genuinely computed and verified Merkle proof (lib/merkle, Phase 8-11).
 
 export interface TechnicalProof {
   claimHash: string;
@@ -50,7 +59,7 @@ export function buildVerificationResult(credentialId: string): VerificationResul
 
   const issuerAuthorisedAtIssuance = notYetSigned
     ? null
-    : isIssuerValidAt(credential.issuerWallet as string, credential.startDate);
+    : isIssuerValidAt(credential.issuerWallet as string, getIssuanceReferenceDate(credential));
 
   const cohortProof: "VALID" | "N/A" = credential.cohortEpochId ? "VALID" : "N/A";
 

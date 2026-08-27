@@ -103,8 +103,9 @@ export default function VerificationReportPage({ params }: { params: { credentia
           <details>
             <summary className="cursor-pointer font-semibold text-slate-900">Technical Proof</summary>
             <p className="mt-2 text-xs text-slate-400">
-              Claim hash is real Keccak-256 (Phase 4). Signature and Merkle proof are still
-              illustrative placeholders, wired up in Phases 5 and 8.
+              Claim hash, issuer authorisation, and current state below are real. Merkle proof and
+              signature are illustrative here — see the ProofPulse and CohortProof pages for a
+              fully worked, genuinely computed and verified Merkle proof.
             </p>
             <dl className="mt-3 grid grid-cols-1 gap-x-4 gap-y-2 text-xs text-slate-600 sm:grid-cols-2">
               <dt>Claim hash</dt>
