@@ -298,8 +298,19 @@ representation, explicit version, UTF-8 deterministic serialisation.
 | 14 | `SOLIDITY_EXPLANATION.md` + `SOLIDITY_VIVA.md` | Both developers can explain every function from the docs |
 | 15 | Full test suite green, demo rehearsed | `npx hardhat test` green; demo flow runs without live code edits |
 
-Each directory in the repo carries a `README.md` stub noting which phase
-populates it.
+**Status:** all 15 phases are code-complete. Phases 1-5 and 8-14 are
+fully verified (unit tests, build, lint, typecheck, live smoke tests).
+Phases 6, 7, 9-11's on-chain half (the contract and its Hardhat tests)
+are written and carefully checked by hand, but not yet independently
+compiled/tested/deployed — the sandboxed environment this was built in
+could not reach `binaries.soliditylang.org` to download the Solidity
+compiler. Run `npm run hardhat:compile && npm run hardhat:test` on a
+machine with normal internet access before relying on the contract.
+
+`lib/contract/` (ethers.js bindings from the UI to a deployed contract)
+still carries its Phase-1 `README.md` stub — the Review 2 UI stays
+mock-data-driven throughout, with the contract verified independently
+via Hardhat rather than wired live into the running Next.js app.
 
 ## 13. Testing plan
 

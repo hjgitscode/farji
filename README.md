@@ -24,8 +24,28 @@ Currently in **Review 2** scope: local prototype only. See
 `docs/REVIEW3_FUTURE_WORK.md` for everything intentionally deferred
 (production hosting, real ERP/LinkedIn integration, testnet deployment, etc).
 
-Build phases and progress are tracked against the Review 2 build plan in
-`docs/ARCHITECTURE.md`. This scaffold represents **Phase 1**.
+All 15 build phases in `docs/ARCHITECTURE.md` are code-complete: the full
+mock-data-driven UI, real Keccak-256/EIP-712 crypto, a real Merkle engine
+wired into CohortProof/ProofPulse, the complete `NotSoFarjiRegistry.sol`
+contract, the lifecycle state machine, and full Solidity documentation.
+
+**One thing is not yet independently verified in this repository: Solidity
+compilation, the Hardhat test suite, and a local deploy.** The contract
+and its tests were written carefully by hand, but compiling Solidity
+requires downloading the compiler from the public internet
+(`binaries.soliditylang.org`), which the sandboxed environment this was
+built in could not reach. Before relying on the contract, run:
+
+```bash
+npm run hardhat:compile
+npm run hardhat:test
+```
+
+on a machine with normal internet access. `lib/contract/` (ethers.js
+bindings from the UI to a deployed contract) is also intentionally left
+unpopulated — the Review 2 UI is mock-data-driven throughout, with the
+contract itself verified separately via Hardhat, not wired live into the
+Next.js app; see `docs/ARCHITECTURE.md` for the reasoning.
 
 ## Quick start
 
@@ -68,8 +88,8 @@ test/unit/      TypeScript unit tests
 docs/           Architecture, Solidity explanation, viva prep, demo script
 ```
 
-Each directory currently contains a `README.md` stub noting which build
-phase populates it — see `docs/ARCHITECTURE.md` for the full phase plan.
+`lib/contract/` still carries a `README.md` stub — see "Project status"
+above for why it's intentionally unpopulated for Review 2.
 
 ## Documentation
 
