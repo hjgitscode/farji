@@ -138,18 +138,29 @@ describe("NotSoFarjiRegistry — issuer registry, key rotation, historical valid
       const issuedAt = genesisTime + 1000;
       expect(await registry.isIssuerValidAt(issuerWallet.address, issuedAt)).to.equal(true);
 
-      // Now the key is rotated to a new wallet.
-      const rotatedAt = Math.floor(Date.now() / 1000);
-      await expect(
-        registry.connect(admin).rotateIssuerKey(organisationId, issuerWallet.address, otherWallet.address, rotatedAt),
-      )
+      // Now the key is rotated to a new wallet. Read back the ACTUAL
+      // on-chain timestamp the rotation was mined at, rather than relying
+      // on the JS-side Date.now() snapshot taken before sending the
+      // transaction — the two can drift apart by more than a few seconds
+      // depending on machine speed, which made this test flaky.
+      const tx = await registry
+        .connect(admin)
+        .rotateIssuerKey(organisationId, issuerWallet.address, otherWallet.address, Math.floor(Date.now() / 1000));
+      const receipt = await tx.wait();
+      const minedBlock = await ethers.provider.getBlock(receipt!.blockNumber);
+      const actualRotatedAt = minedBlock!.timestamp;
+
+      await expect(tx)
         .to.emit(registry, "IssuerKeyRotated")
         .withArgs(organisationId, issuerWallet.address, otherWallet.address, anyValue);
 
       // The historical signature is still judged valid at issuance time...
       expect(await registry.isIssuerValidAt(issuerWallet.address, issuedAt)).to.equal(true);
-      // ...but the old wallet can no longer sign anything new.
-      const afterRotation = rotatedAt + 10;
+      // ...but the old wallet can no longer sign anything new. Comparing
+      // against actualRotatedAt (not a separately-captured wall-clock
+      // value) means this assertion holds regardless of how long the
+      // transaction actually took to mine.
+      const afterRotation = actualRotatedAt + 10;
       expect(await registry.isIssuerValidAt(issuerWallet.address, afterRotation)).to.equal(false);
       // ...and the new wallet is valid from the rotation point onward.
       expect(await registry.isIssuerValidAt(otherWallet.address, afterRotation)).to.equal(true);
