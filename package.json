@@ -11,10 +11,10 @@
     "typecheck": "tsc --noEmit",
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",
-    "hardhat:compile": "TS_NODE_PROJECT=tsconfig.hardhat.json hardhat compile",
-    "hardhat:test": "TS_NODE_PROJECT=tsconfig.hardhat.json hardhat test",
-    "hardhat:node": "TS_NODE_PROJECT=tsconfig.hardhat.json hardhat node",
-    "hardhat:deploy:local": "TS_NODE_PROJECT=tsconfig.hardhat.json hardhat run scripts/deploy.ts --network localhost"
+    "hardhat:compile": "cross-env TS_NODE_PROJECT=tsconfig.hardhat.json hardhat compile",
+    "hardhat:test": "cross-env TS_NODE_PROJECT=tsconfig.hardhat.json hardhat test",
+    "hardhat:node": "cross-env TS_NODE_PROJECT=tsconfig.hardhat.json hardhat node",
+    "hardhat:deploy:local": "cross-env TS_NODE_PROJECT=tsconfig.hardhat.json hardhat run scripts/deploy.ts --network localhost"
   },
   "dependencies": {
     "ethers": "^6.13.0",
@@ -29,6 +29,7 @@
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "autoprefixer": "^10.4.19",
+    "cross-env": "^7.0.3",
     "eslint": "^8.57.0",
     "eslint-config-next": "^14.2.5",
     "hardhat": "^2.22.6",
