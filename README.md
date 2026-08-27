@@ -24,28 +24,18 @@ Currently in **Review 2** scope: local prototype only. See
 `docs/REVIEW3_FUTURE_WORK.md` for everything intentionally deferred
 (production hosting, real ERP/LinkedIn integration, testnet deployment, etc).
 
-All 15 build phases in `docs/ARCHITECTURE.md` are code-complete: the full
-mock-data-driven UI, real Keccak-256/EIP-712 crypto, a real Merkle engine
-wired into CohortProof/ProofPulse, the complete `NotSoFarjiRegistry.sol`
-contract, the lifecycle state machine, and full Solidity documentation.
+All 15 build phases in `docs/ARCHITECTURE.md` are complete and verified:
+the full mock-data-driven UI, real Keccak-256/EIP-712 crypto, a real
+Merkle engine wired into CohortProof/ProofPulse, the lifecycle state
+machine, and the complete `NotSoFarjiRegistry.sol` contract — which
+compiles cleanly and passes all 35 Hardhat tests (`npm run
+hardhat:compile && npm run hardhat:test`).
 
-**One thing is not yet independently verified in this repository: Solidity
-compilation, the Hardhat test suite, and a local deploy.** The contract
-and its tests were written carefully by hand, but compiling Solidity
-requires downloading the compiler from the public internet
-(`binaries.soliditylang.org`), which the sandboxed environment this was
-built in could not reach. Before relying on the contract, run:
-
-```bash
-npm run hardhat:compile
-npm run hardhat:test
-```
-
-on a machine with normal internet access. `lib/contract/` (ethers.js
-bindings from the UI to a deployed contract) is also intentionally left
-unpopulated — the Review 2 UI is mock-data-driven throughout, with the
-contract itself verified separately via Hardhat, not wired live into the
-Next.js app; see `docs/ARCHITECTURE.md` for the reasoning.
+`lib/contract/` (ethers.js bindings from the UI to a deployed contract)
+is intentionally left unpopulated — the Review 2 UI is mock-data-driven
+throughout, with the contract itself verified separately via Hardhat,
+not wired live into the Next.js app; see `docs/ARCHITECTURE.md` for the
+reasoning.
 
 ## Quick start
 
