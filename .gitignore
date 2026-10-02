@@ -1,0 +1,28 @@
+# dependencies
+node_modules/
+
+# build output
+.next/
+out/
+build/
+dist/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# environment (never commit secrets)
+.env
+.env.*
+!.env.example
+
+# logs
+*.log
+npm-debug.log*
+
+# local tooling artifacts
+.vercel/
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+.claude/settings.local.json

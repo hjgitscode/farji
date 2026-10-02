@@ -1,0 +1,37 @@
+export type AppEnv = {
+  appUrl: string;
+};
+
+export class EnvValidationError extends Error {
+  readonly problems: string[];
+
+  constructor(problems: string[]) {
+    super(`Invalid environment configuration: ${problems.join("; ")}`);
+    this.name = "EnvValidationError";
+    this.problems = problems;
+  }
+}
+
+const DEFAULT_APP_URL = "http://localhost:3000";
+
+/** Validates and returns typed environment configuration. Pure: takes the env as input. */
+export function parseEnv(source: Record<string, string | undefined>): AppEnv {
+  const problems: string[] = [];
+  const appUrl = source.NEXT_PUBLIC_APP_URL?.trim() || DEFAULT_APP_URL;
+
+  try {
+    const url = new URL(appUrl);
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      problems.push("NEXT_PUBLIC_APP_URL must be an http(s) URL");
+    }
+  } catch {
+    problems.push("NEXT_PUBLIC_APP_URL must be a valid URL");
+  }
+
+  if (problems.length > 0) throw new EnvValidationError(problems);
+  return { appUrl };
+}
+
+export function getEnv(): AppEnv {
+  return parseEnv(process.env);
+}

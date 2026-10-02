@@ -13,7 +13,7 @@ Rules that apply to every phase are in [../CLAUDE.md](../CLAUDE.md).
 | Phase | Title | Status |
 |---|---|---|
 | 0 | Permanent project specification | ✅ Complete (2026-10-02; review corrections applied) |
-| 1 | Application foundation | ⬜ Not started |
+| 1 | Application foundation | ✅ Complete |
 | 2 | Production domain/database schema | ⬜ Not started |
 | 3 | Authentication and RBAC | ⬜ Not started |
 | 4 | Candidate backend/workflow | ⬜ Not started |

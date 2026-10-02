@@ -133,4 +133,4 @@ consistent across all documents.
 
 ## Current status
 
-Phase 0 (specification) complete. Next: Phase 1 — application foundation.
+Phases 0 (specification) and 1 (application foundation) complete. Next: Phase 2 — production domain/database schema.
