@@ -33,9 +33,12 @@ Terminology follows [DOMAIN_MODEL.md](DOMAIN_MODEL.md). On-chain anchoring follo
   can never equal an internal node value.
 - **No personal data in leaves.** Leaves contain only commitments and metadata:
   `credentialId`, `subjectCommitment` (salted), `contentDigest` (EIP-712 hash of
-  salted content), lifecycle fields and timestamps. Each Credential has its own
-  32-byte random `credentialSalt`/content salt so low-entropy claim content
-  (e.g. a job title) cannot be brute-forced from a published digest.
+  salted content), lifecycle fields and timestamps. Each Credential has **three
+  distinct** 32-byte random salts: `credentialSalt` (feeds `credentialId`; becomes
+  public if the credential is revoked), `contentSalt` (salts `contentDigest`; private)
+  and `subjectSalt` (salts `subjectCommitment`; private). They must never be reused
+  for one another, so publishing `credentialSalt` at revocation reveals nothing about
+  claim content or subject.
 - Content is canonicalised before hashing (deterministic normalisation, then
   EIP-712 `hashStruct`) — specified in Phase 6.
 - All Merkle logic lives in `lib/merkle/` (pure, no I/O) and is consumed by the
@@ -150,10 +153,14 @@ recomputed path nodes, (d) records whatever proof material §3.5 requires,
 
 ### 3.5 Persistence and history
 Required (permanent):
-- `PulseRoot(organisationId, rootSeq, root, causedBy)` — append-only log of roots.
-- `PulseEpoch(organisationId, epoch, rootSeq, root, chainRoot, anchoredAt)` — one
-  row per anchored snapshot; `epoch` is the Anchor's position in the Organisation's
-  PROOF_PULSE attestation chain.
+- `ProofPulseUpdate(treeId, rootSeq, kind, leafIndex, newLeafHash, previousRoot,
+  newRoot, causedByAttestationId)` — append-only log of every tree change; this is the
+  permanent root history (Phase 2 reserves it; Phase 7 populates it).
+- A ProofPulse epoch is an `Anchor` row of type PROOF_PULSE (`epoch` = position in the
+  Organisation's PROOF_PULSE attestation chain, `rootSeq` = the tree state it
+  snapshots). There is no separate epoch table.
+- `ProofPulseLeaf` and `ProofPulseNode` hold the *current* leaf states and node
+  hashes (a rewritable projection/cache, derivable from the update log).
 - Every anchored root, and **enough evidence to verify inclusion proofs against it**
   for every leaf it contained, e.g. "Aarav was ACTIVE as of the January checkpoint".
 

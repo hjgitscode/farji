@@ -89,11 +89,13 @@ enum AttestationType { COHORT, PROOF_PULSE }
 
 struct Organisation { OrgStatus status; uint64 registeredAt; bytes32 metadataHash; }
 
-struct KeyWindow {
+// One record per wallet, ever. A wallet is authorised once; retiring or
+// compromising it closes its validity period permanently. It is never re-authorised.
+struct IssuerKey {
     bytes32 orgId;
     uint64  validFrom;        // block.timestamp of authorisation
-    uint64  validUntil;       // 0 = still valid
-    uint64  compromisedSince; // 0 = not compromised
+    uint64  validUntil;       // 0 = still valid; set once on retirement
+    uint64  compromisedAt;    // 0 = not compromised; set once
 }
 
 struct ChainHead { bytes32 chainRoot; uint64 epoch; }   // epoch 0 = empty chain
@@ -114,8 +116,7 @@ struct Anchor {               // keyed by chainRoot
 struct Revocation { bytes32 orgId; uint64 revokedAt; uint16 reasonCode; address revokedBy; }
 
 mapping(bytes32 => Organisation)                          organisations;
-mapping(address => KeyWindow[])                           keyHistory;         // append-only per wallet
-mapping(address => bytes32)                               walletOrganisation; // set once, never changes
+mapping(address => IssuerKey)                             issuerKeys;         // one record per wallet, never re-created
 mapping(bytes32 => mapping(AttestationType => ChainHead)) chainHeads;         // orgId => type => head
 mapping(bytes32 => Anchor)                                anchors;            // chainRoot => Anchor
 mapping(bytes32 => uint64)                                lastPulseRootSeq;   // orgId => rootSeq
@@ -134,15 +135,15 @@ numbers or any other personal claim content.
 |---|---|
 | `registerOrganisation(orgId, metadataHash)` | orgId unused |
 | `setOrganisationStatus(orgId, status)` | Suspension blocks new anchors; never alters history |
-| `authoriseIssuerWallet(orgId, wallet)` | Org ACTIVE; wallet never bound to a different Organisation; no open window; appends `KeyWindow{validFrom = now}` |
-| `retireIssuerWallet(wallet)` | Closes open window: `validUntil = now`. Past signatures stay valid. |
-| `rotateIssuerWallet(orgId, oldWallet, newWallet)` | Atomic retire(old) + authorise(new) at the same timestamp |
-| `markIssuerWalletCompromised(wallet, compromisedSince)` | `validFrom <= compromisedSince <= now`; also closes the window. Additive — never deletes the window. |
+| `authoriseIssuerWallet(orgId, wallet)` | Org ACTIVE; **`issuerKeys[wallet]` must not exist** (a wallet that was ever authorised, retired or compromised is never re-authorised, for any Organisation); records `IssuerKey{validFrom = now}` |
+| `retireIssuerWallet(wallet)` | Sets `validUntil = now` once. Past signatures stay valid. The wallet can never be authorised again. |
+| `rotateIssuerWallet(orgId, oldWallet, newWallet)` | Atomic retire(old) + authorise(new) at the same timestamp; `newWallet` must be a **fresh** wallet (rotation never reuses an address) |
+| `markIssuerWalletCompromised(wallet, compromisedAt)` | `validFrom <= compromisedAt <= now`; sets `compromisedAt` once and closes the validity period if still open. Additive — never deletes the record. |
 | `pauseAnchoring()` / `unpauseAnchoring()` | Pauses new anchors and new authorisations only. **Never** blocks revocation, retirement or compromise marking. |
 
 Admins have **no** function to revoke a Credential or anchor a root.
 
-### 6.2 Issuer wallet (`msg.sender` must hold an open, non-compromised window for `orgId` at `block.timestamp`, and the Organisation must be ACTIVE)
+### 6.2 Issuer wallet (`msg.sender` must be an open (not retired), non-compromised `IssuerKey` of `orgId` at `block.timestamp`, and the Organisation must be ACTIVE)
 | Function | Key checks |
 |---|---|
 | `anchorCohortRoot(orgId, batchRoot, leafCount, schemaId, expectedPreviousChainRoot)` | `expectedPreviousChainRoot == chainHeads[orgId][COHORT].chainRoot`; batchRoot non-zero; appends to the COHORT chain (§8.1) |
@@ -150,11 +151,11 @@ Admins have **no** function to revoke a Credential or anchor a root.
 | `revokeCredential(orgId, credentialSalt, reasonCode)` | Computes `credentialId` from `orgId` and salt — so an issuer can only ever revoke IDs belonging to its own Organisation; not already revoked |
 
 Revocation is permitted even if the Organisation is SUSPENDED, provided the
-caller's window is open and not compromised.
+caller's key is open and not compromised.
 
 ### 6.3 Views
 - `isIssuerAuthorisedAt(orgId, wallet, timestamp) → bool`
-- `getKeyHistory(wallet) → KeyWindow[]`
+- `getIssuerKey(wallet) → IssuerKey`
 - `getAnchor(chainRoot)`, `getChainHead(orgId, attestationType)`
 - `getRevocation(credentialId)`
 - `computeCredentialId(orgId, credentialSalt)`
@@ -164,20 +165,24 @@ caller's window is open and not compromised.
 
 ## 7. Time-aware issuer key history
 
-- Key history is **append-only**: windows are opened and closed, never deleted or
-  rewritten (compromise marking adds a field once).
+- Key history is **append-only**: each wallet has exactly one `IssuerKey` record
+  (`validFrom`, `validUntil`, `compromisedAt`). Its validity period is closed once and
+  never reopened; compromise marking sets one field once. There are no multiple
+  windows per wallet.
 - A signature is valid only if the signer was authorised **for that Organisation at
-  the exact issuance timestamp** (`issuedAt` inside the signed message):
+  the exact issuance timestamp** (`issuedAt` inside the signed message), judged
+  against the key's original validity period:
   `validFrom <= issuedAt` and (`validUntil == 0` or `issuedAt < validUntil`).
 - Because `issuedAt` is chosen by the signer, it is bounded by anchoring time:
   `issuedAt <= anchoredAt <= issuedAt + maxAnchorDelay`. A positive on-chain state
   requires an anchor, so a retired or stolen key cannot silently backdate a new
   credential.
-- **Rotation** (planned key change): old signatures remain valid forever.
-- **Compromise**: any evidence anchored at or after `compromisedSince` that relies on
+- **Rotation** (planned key change): the old wallet is retired and a **new** `IssuerKey`
+  is created for a fresh wallet. Old signatures remain valid forever.
+- **Compromise**: any evidence anchored at or after `compromisedAt` that relies on
   the compromised key is `INVALID_PROOF`; evidence anchored before it remains valid.
-- A wallet address is bound to one Organisation for life; it can never be
-  re-authorised for another Organisation.
+- A wallet address is bound to one Organisation for life. Once retired or compromised
+  it is **never re-authorised** in FARJI — not for the same Organisation, not for another.
 
 ---
 
@@ -297,7 +302,7 @@ Every state change emits an event: `OrganisationRegistered`,
 ## 13. Application ↔ chain consistency
 
 - Writes: the browser wallet submits the transaction; the server records a
-  `ChainTransaction` (SUBMITTED) from the returned hash, then confirms it by reading
+  `BlockchainTransaction` (PENDING) from the returned hash, then confirms it by reading
   the receipt and event logs from its own RPC — never trusting a client claim.
 - **Confirmation/finality policy:** a verification result may claim an on-chain
   positive state only after the relevant anchor reaches the required policy
@@ -320,8 +325,9 @@ Every state change emits an event: `OrganisationRegistered`,
 - Cross-organisation revocation attempt reverts.
 - Admin cannot revoke or anchor.
 - Retired/compromised/not-yet-authorised wallets cannot anchor or revoke.
-- `isIssuerAuthorisedAt` correct at window boundaries (`validFrom`, `validUntil`,
-  `compromisedSince`).
+- `isIssuerAuthorisedAt` correct at validity-period boundaries (`validFrom`, `validUntil`,
+  `compromisedAt`).
+- A retired or compromised wallet can never be authorised again (same or other Organisation).
 - Wallet cannot be re-bound to another Organisation.
 - ProofPulse `rootSeq` monotonicity and equal-seq/same-root rule.
 - `chainRoot` computation matches the off-chain implementation; stale

@@ -1,0 +1,676 @@
+// FARJI production schema (Phase 2B). See docs/DOMAIN_MODEL.md.
+//
+// Rules:
+// - Internal primary keys are UUIDs. Blockchain values (orgId, credentialId, roots,
+//   hashes, tx hashes, addresses) are unique business identifiers, never primary keys.
+// - Hex values are stored as lowercase 0x-hex CHAR (bytes32 = 66, address = 42,
+//   signature = 132); format CHECK constraints live in the migration SQL.
+// - No verification state, verified flag or score is stored anywhere. Verification
+//   state is derived (lib/verification, Phase 10).
+// - Every relation is onDelete/onUpdate Restrict. History is never cascaded away.
+// - Partial unique indexes, CHECK constraints and triggers that Prisma cannot express
+//   live in prisma/migrations/*_init/migration.sql.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/database/generated"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ───────────────────────────── Enums ─────────────────────────────
+
+enum UserRole {
+  CANDIDATE
+  ISSUER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DEACTIVATED
+}
+
+enum ProfileVisibility {
+  PUBLIC
+  UNLISTED
+  PRIVATE
+}
+
+enum OrganisationKind {
+  EMPLOYER
+  EDUCATION
+  LICENSING_BODY
+  ASSOCIATION
+  OTHER
+}
+
+enum OrganisationStatus {
+  PENDING_ONBOARDING
+  ACTIVE
+  SUSPENDED
+}
+
+enum MemberStatus {
+  INVITED
+  ACTIVE
+  REMOVED
+}
+
+enum ClaimCategory {
+  EXPERIENCE
+  EDUCATION
+  CERTIFICATION
+  MEMBERSHIP
+}
+
+enum LifecycleType {
+  PERMANENT
+  CONTINUING
+  EXPIRING
+}
+
+enum VersionAuthor {
+  CANDIDATE
+  ISSUER
+}
+
+enum VerificationRequestStatus {
+  SUBMITTED
+  IN_REVIEW
+  APPROVED
+  REJECTED
+  WITHDRAWN
+  SUPERSEDED
+}
+
+enum DecisionType {
+  APPROVE
+  REJECT
+}
+
+enum RejectionReason {
+  IDENTITY_NOT_MATCHED
+  RECORD_NOT_FOUND
+  DATES_MISMATCH
+  TITLE_MISMATCH
+  OTHER
+}
+
+// Operational workflow status. NOT a verification state.
+enum CredentialPipelineStatus {
+  AWAITING_SIGNATURE
+  SIGNED
+  QUEUED_FOR_ANCHOR
+  ANCHORED
+}
+
+enum AttestationKind {
+  CREDENTIAL
+  STATUS_CHANGE
+}
+
+enum AttestationType {
+  COHORT
+  PROOF_PULSE
+}
+
+enum CohortBatchStatus {
+  OPEN
+  SEALED
+  ANCHORED
+}
+
+enum PulseScope {
+  EMPLOYMENT
+  ENROLMENT
+  MEMBERSHIP
+}
+
+// ENDED is a ProofPulse status. REVOKED is deliberately NOT a value here.
+enum PulseLeafStatus {
+  ACTIVE
+  ENDED
+}
+
+enum PulseUpdateKind {
+  INSERT
+  STATUS_CHANGE
+}
+
+enum RevocationReason {
+  ISSUED_IN_ERROR
+  FRAUD
+  RECORD_CORRECTED
+  OTHER
+}
+
+enum TxPurpose {
+  REGISTER_ORGANISATION
+  SET_ORGANISATION_STATUS
+  AUTHORISE_ISSUER_KEY
+  RETIRE_ISSUER_KEY
+  MARK_ISSUER_KEY_COMPROMISED
+  ANCHOR_COHORT
+  ANCHOR_PROOF_PULSE
+  REVOKE_CREDENTIAL
+}
+
+// What a pending transaction is trying to change (polymorphic reference, no FK).
+enum TxTargetType {
+  ORGANISATION
+  ISSUER_KEY
+  COHORT_BATCH
+  PROOF_PULSE_TREE
+  CREDENTIAL
+}
+
+enum TxStatus {
+  PENDING
+  CONFIRMED
+  FINALIZED
+  FAILED
+  DROPPED
+}
+
+// ───────────────────────────── Accounts ─────────────────────────────
+
+model User {
+  id         String     @id @default(uuid(7)) @db.Uuid
+  authUserId String     @unique @db.Uuid // Supabase Auth user id. Email lives in Supabase Auth only.
+  role       UserRole // one primary application role; never read from auth metadata
+  status     UserStatus @default(ACTIVE)
+  createdAt  DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime   @updatedAt @db.Timestamptz(3)
+
+  profile              Profile?
+  membership           OrganisationMember[]
+  claims               Claim[]
+  verificationRequests VerificationRequest[]
+  transactions         BlockchainTransaction[]
+  auditEvents          AuditEvent[]
+}
+
+model Profile {
+  id          String            @id @default(uuid(7)) @db.Uuid
+  userId      String            @unique @db.Uuid
+  handle      String            @unique
+  displayName String
+  headline    String?
+  about       String?
+  location    String?
+  visibility  ProfileVisibility @default(PRIVATE)
+  createdAt   DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime          @updatedAt @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+}
+
+// ───────────────────────────── Organisations ─────────────────────────────
+
+model Organisation {
+  id                 String             @id @default(uuid(7)) @db.Uuid
+  orgId              String             @unique @db.Char(66) // bytes32 on-chain identifier
+  slug               String             @unique
+  legalName          String
+  displayName        String
+  kind               OrganisationKind
+  status             OrganisationStatus @default(PENDING_ONBOARDING)
+  pulseFreshnessDays Int                @default(45) // configurable policy, never hardcoded in the engine
+  createdAt          DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime           @updatedAt @db.Timestamptz(3)
+
+  members              OrganisationMember[]
+  issuerKeys           IssuerKey[]
+  claims               Claim[]
+  verificationRequests VerificationRequest[]
+  reviewDecisions      ReviewDecision[]
+  credentials          Credential[]
+  attestations         Attestation[]
+  cohortBatches        CohortBatch[]
+  cohortLeaves         CohortLeaf[]
+  anchors              Anchor[]
+  proofPulseTree       ProofPulseTree?
+  proofPulseLeaves     ProofPulseLeaf[]
+  revocations          Revocation[]
+  transactions         BlockchainTransaction[]
+  auditEvents          AuditEvent[]
+}
+
+model OrganisationMember {
+  id             String       @id @default(uuid(7)) @db.Uuid
+  userId         String       @db.Uuid
+  organisationId String       @db.Uuid
+  status         MemberStatus @default(INVITED)
+  invitedAt      DateTime     @default(now()) @db.Timestamptz(3)
+  joinedAt       DateTime?    @db.Timestamptz(3)
+  removedAt      DateTime?    @db.Timestamptz(3)
+  updatedAt      DateTime     @updatedAt @db.Timestamptz(3)
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  reviewDecisions ReviewDecision[]
+  operatedKeys    IssuerKey[]
+
+  @@unique([id, organisationId]) // target of organisation-scoped composite FKs
+  @@index([organisationId, status])
+}
+
+// One row per issuer wallet authorisation lifecycle. A wallet address is globally
+// unique, so a retired (or compromised) wallet can NEVER be re-authorised in FARJI.
+// Rotation = a NEW row for a fresh wallet. Historical validity is judged against the
+// row's own [validFrom, validUntil) period.
+model IssuerKey {
+  id                     String    @id @default(uuid(7)) @db.Uuid
+  organisationId         String    @db.Uuid
+  walletAddress          String    @unique @db.Char(42)
+  validFrom              DateTime  @db.Timestamptz(3) // on-chain authorisation block time
+  validUntil             DateTime? @db.Timestamptz(3) // set once when retired; null = still valid
+  compromisedAt          DateTime? @db.Timestamptz(3) // set once when marked compromised
+  operatorMemberId       String?   @db.Uuid // the issuer member who operates this wallet
+  authoriseTransactionId String?   @db.Uuid
+  retireTransactionId    String?   @db.Uuid
+  createdAt              DateTime  @default(now()) @db.Timestamptz(3)
+
+  organisation         Organisation           @relation(fields: [organisationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  operatorMember       OrganisationMember?    @relation(fields: [operatorMemberId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  authoriseTransaction BlockchainTransaction? @relation("IssuerKeyAuthoriseTx", fields: [authoriseTransactionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  retireTransaction    BlockchainTransaction? @relation("IssuerKeyRetireTx", fields: [retireTransactionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  attestations Attestation[]
+  anchors      Anchor[]
+  revocations  Revocation[]
+
+  @@unique([id, organisationId])
+  @@index([organisationId])
+}
+
+// ───────────────────────────── Claims ─────────────────────────────
+
+// Stable identity of one real-world job / degree / licence.
+model Claim {
+  id             String            @id @default(uuid(7)) @db.Uuid
+  candidateId    String            @db.Uuid
+  category       ClaimCategory
+  organisationId String?           @db.Uuid // null when the organisation is free text (unverifiable)
+  visibility     ProfileVisibility @default(PRIVATE)
+  archivedAt     DateTime?         @db.Timestamptz(3)
+  createdAt      DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime          @updatedAt @db.Timestamptz(3)
+
+  candidate    User           @relation(fields: [candidateId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  organisation Organisation?  @relation(fields: [organisationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  versions     ClaimVersion[] // current version = highest versionNumber
+
+  @@index([candidateId])
+}
+
+// Immutable snapshot. Editing a Claim inserts version N+1.
+model ClaimVersion {
+  id                    String        @id @default(uuid(7)) @db.Uuid
+  claimId               String        @db.Uuid
+  versionNumber         Int
+  content               Json // typed per category; candidate personal data, never on-chain
+  proposedLifecycleType LifecycleType // the candidate's proposal; authoritative type lives on Credential
+  authoredBy            VersionAuthor @default(CANDIDATE)
+  createdAt             DateTime      @default(now()) @db.Timestamptz(3)
+
+  claim                Claim                 @relation(fields: [claimId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  verificationRequests VerificationRequest[]
+  credential           Credential?
+
+  @@unique([claimId, versionNumber])
+}
+
+// ───────────────────────────── Review workflow ─────────────────────────────
+
+model VerificationRequest {
+  id                      String                    @id @default(uuid(7)) @db.Uuid
+  claimVersionId          String                    @db.Uuid // one exact ClaimVersion
+  organisationId          String                    @db.Uuid
+  candidateId             String                    @db.Uuid
+  status                  VerificationRequestStatus @default(SUBMITTED)
+  institutionalIdentifier String?
+  candidateNote           String?
+  submittedAt             DateTime                  @default(now()) @db.Timestamptz(3)
+  closedAt                DateTime?                 @db.Timestamptz(3)
+  updatedAt               DateTime                  @updatedAt @db.Timestamptz(3)
+
+  claimVersion ClaimVersion    @relation(fields: [claimVersionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  organisation Organisation    @relation(fields: [organisationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  candidate    User            @relation(fields: [candidateId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  decision     ReviewDecision?
+
+  @@unique([id, organisationId])
+  @@index([organisationId, status, submittedAt])
+  @@index([claimVersionId])
+}
+
+// Append-only. A rejection is a row here; it never deletes the claim.
+model ReviewDecision {
+  id                     String           @id @default(uuid(7)) @db.Uuid
+  verificationRequestId  String           @unique @db.Uuid
+  organisationId         String           @db.Uuid
+  reviewerMemberId       String           @db.Uuid
+  decision               DecisionType
+  rejectionReason        RejectionReason?
+  notes                  String? // internal only; never public
+  sourceOfTruthReference String? // pointer to the organisation's own record, never a copy
+  decidedAt              DateTime         @default(now()) @db.Timestamptz(3)
+
+  request      VerificationRequest @relation(fields: [verificationRequestId, organisationId], references: [id, organisationId], onDelete: Restrict, onUpdate: Restrict)
+  organisation Organisation        @relation(fields: [organisationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  reviewer     OrganisationMember  @relation(fields: [reviewerMemberId, organisationId], references: [id, organisationId], onDelete: Restrict, onUpdate: Restrict)
+  credential   Credential?
+
+  @@unique([verificationRequestId, organisationId])
+}
+
+// ───────────────────────────── Credentials & evidence ─────────────────────────────
+
+// Organisation-issued record for exactly one ClaimVersion (one per ClaimVersion in the MVP).
+// Cryptographic columns are nullable until signing (Phase 6); a CHECK requires them once
+// the pipeline moves past AWAITING_SIGNATURE.
+model Credential {
+  id                     String                   @id @default(uuid(7)) @db.Uuid
+  organisationId         String                   @db.Uuid
+  claimVersionId         String                   @unique @db.Uuid
+  reviewDecisionId       String?                  @unique @db.Uuid // null for issuer-initiated cohort issuance
+  lifecycleType          LifecycleType // authoritative and immutable
+  pipelineStatus         CredentialPipelineStatus @default(AWAITING_SIGNATURE)
+  credentialId           String?                  @unique @db.Char(66) // keccak(tag, orgId, credentialSalt); public after revocation
+  credentialSalt         String?                  @db.Char(66) // PUBLIC if the credential is ever revoked
+  contentSalt            String?                  @db.Char(66) // private: salts contentDigest
+  subjectSalt            String?                  @db.Char(66) // private: salts subjectCommitment
+  subjectCommitment      String?                  @db.Char(66)
+  contentDigest          String?                  @db.Char(66)
+  validFrom              DateTime?                @db.Timestamptz(3)
+  validUntil             DateTime?                @db.Timestamptz(3) // EXPIRING only
+  supersedesCredentialId String?                  @unique @db.Uuid // linear version chain
+  issuedAt               DateTime?                @db.Timestamptz(3) // the signed issuance timestamp
+  createdAt              DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt              DateTime                 @updatedAt @db.Timestamptz(3)
+
+  organisation Organisation    @relation(fields: [organisationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  claimVersion ClaimVersion    @relation(fields: [claimVersionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  decision     ReviewDecision? @relation(fields: [reviewDecisionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  supersedes   Credential?     @relation("CredentialSupersession", fields: [supersedesCredentialId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  supersededBy Credential?     @relation("CredentialSupersession")
+
+  attestations   Attestation[]
+  cohortLeaf     CohortLeaf?
+  proofPulseLeaf ProofPulseLeaf?
+  revocation     Revocation?
+
+  @@unique([id, organisationId])
+  @@index([organisationId, pipelineStatus])
+}
+
+// EIP-712 / signature evidence. Append-only. Stores no secrets and no claim content:
+// the signed message is recomputed from ClaimVersion + salts and checked against typedDataHash.
+model Attestation {
+  id                String           @id @default(uuid(7)) @db.Uuid
+  kind              AttestationKind
+  credentialRowId   String           @db.Uuid
+  organisationId    String           @db.Uuid
+  signerKeyId       String           @db.Uuid
+  typedDataHash     String           @unique @db.Char(66)
+  signature         String           @db.Char(132)
+  nonce             String           @db.Char(66)
+  issuedAt          DateTime         @db.Timestamptz(3) // timestamp inside the signed message
+  chainId           Int
+  verifyingContract String           @db.Char(42)
+  statusSeq         Int? // STATUS_CHANGE only
+  newStatus         PulseLeafStatus? // STATUS_CHANGE only
+  effectiveAt       DateTime?        @db.Timestamptz(3) // STATUS_CHANGE only
+  receivedAt        DateTime         @default(now()) @db.Timestamptz(3)
+
+  credential   Credential   @relation(fields: [credentialRowId, organisationId], references: [id, organisationId], onDelete: Restrict, onUpdate: Restrict)
+  signerKey    IssuerKey    @relation(fields: [signerKeyId, organisationId], references: [id, organisationId], onDelete: Restrict, onUpdate: Restrict)
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  proofPulseUpdates ProofPulseUpdate[]
+
+  @@unique([signerKeyId, nonce])
+  @@index([credentialRowId])
+}
+
+// ───────────────────────────── CohortProof ─────────────────────────────
+
+model CohortBatch {
+  id             String            @id @default(uuid(7)) @db.Uuid
+  organisationId String            @db.Uuid
+  label          String
+  status         CohortBatchStatus @default(OPEN)
+  batchRoot      String?           @db.Char(66) // set once at sealing
+  leafCount      Int? // set once at sealing
+  sealedAt       DateTime?         @db.Timestamptz(3)
+  anchorId       String?           @unique @db.Uuid
+  createdAt      DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime          @updatedAt @db.Timestamptz(3)
+
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  anchor       Anchor?      @relation(fields: [anchorId, organisationId], references: [id, organisationId], onDelete: Restrict, onUpdate: Restrict)
+  leaves       CohortLeaf[]
+
+  @@unique([anchorId, organisationId])
+  @@unique([id, organisationId])
+  @@index([organisationId, status])
+}
+
+model CohortLeaf {
+  id              String   @id @default(uuid(7)) @db.Uuid
+  batchId         String   @db.Uuid
+  credentialRowId String   @unique @db.Uuid // one cohort leaf per credential
+  organisationId  String   @db.Uuid
+  position        Int
+  leafHash        String   @db.Char(66)
+  proof           Json? // sibling hashes; written once at sealing
+  createdAt       DateTime @default(now()) @db.Timestamptz(3)
+
+  batch        CohortBatch  @relation(fields: [batchId, organisationId], references: [id, organisationId], onDelete: Restrict, onUpdate: Restrict)
+  credential   Credential   @relation(fields: [credentialRowId, organisationId], references: [id, organisationId], onDelete: Restrict, onUpdate: Restrict)
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([credentialRowId, organisationId])
+  @@unique([batchId, position])
+  @@unique([batchId, leafHash])
+}
+
+// ───────────────────────────── Anchors ─────────────────────────────
+
+// A successfully OBSERVED on-chain anchor in the (organisation, attestationType) chain.
+// Whether it meets the finality policy is read from its BlockchainTransaction.
+model Anchor {
+  id                String          @id @default(uuid(7)) @db.Uuid
+  organisationId    String          @db.Uuid
+  attestationType   AttestationType
+  epoch             Int // position within its own chain, starting at 1
+  batchRoot         String          @db.Char(66)
+  previousChainRoot String          @db.Char(66) // zero hash for epoch 1
+  chainRoot         String          @unique @db.Char(66)
+  rootSeq           Int? // PROOF_PULSE only: the tree rootSeq snapshotted
+  leafCount         Int
+  anchorerKeyId     String          @db.Uuid
+  transactionId     String          @unique @db.Uuid
+  blockNumber       BigInt
+  blockTimestamp    DateTime        @db.Timestamptz(3)
+  observedAt        DateTime        @default(now()) @db.Timestamptz(3)
+
+  organisation Organisation          @relation(fields: [organisationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  anchorerKey  IssuerKey             @relation(fields: [anchorerKeyId, organisationId], references: [id, organisationId], onDelete: Restrict, onUpdate: Restrict)
+  transaction  BlockchainTransaction @relation(fields: [transactionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  cohortBatch  CohortBatch?
+
+  @@unique([id, organisationId])
+  @@unique([organisationId, attestationType, epoch])
+  @@unique([organisationId, attestationType, previousChainRoot]) // a chain cannot fork
+}
+
+// ───────────────────────────── ProofPulse (structure only; algorithm is Phase 7) ─────────────────────────────
+
+// Exactly one tree per organisation in the MVP.
+model ProofPulseTree {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organisationId String   @unique @db.Uuid
+  depth          Int      @default(20) // immutable
+  currentRoot    String?  @db.Char(66)
+  currentRootSeq Int      @default(0) // monotonic
+  nextLeafIndex  Int      @default(0)
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(3)
+
+  organisation Organisation       @relation(fields: [organisationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  leaves       ProofPulseLeaf[]
+  nodes        ProofPulseNode[]
+  updates      ProofPulseUpdate[]
+
+  @@unique([id, organisationId])
+}
+
+// Current-state projection of one CONTINUING credential. History lives in ProofPulseUpdate.
+model ProofPulseLeaf {
+  id                String          @id @default(uuid(7)) @db.Uuid
+  treeId            String          @db.Uuid
+  organisationId    String          @db.Uuid
+  credentialRowId   String          @unique @db.Uuid // one leaf per continuing credential
+  leafIndex         Int // assigned once, kept forever
+  scope             PulseScope
+  status            PulseLeafStatus @default(ACTIVE)
+  statusSeq         Int             @default(1)
+  statusEffectiveAt DateTime        @db.Timestamptz(3)
+  leafHash          String?         @db.Char(66)
+  updatedAt         DateTime        @updatedAt @db.Timestamptz(3)
+
+  tree         ProofPulseTree @relation(fields: [treeId, organisationId], references: [id, organisationId], onDelete: Restrict, onUpdate: Restrict)
+  credential   Credential     @relation(fields: [credentialRowId, organisationId], references: [id, organisationId], onDelete: Restrict, onUpdate: Restrict)
+  organisation Organisation   @relation(fields: [organisationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([credentialRowId, organisationId])
+  @@unique([treeId, leafIndex])
+}
+
+// Current internal node hashes (derivable cache for path updates).
+model ProofPulseNode {
+  treeId    String   @db.Uuid
+  level     Int // 0 = leaf level
+  position  Int
+  hash      String   @db.Char(66)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  tree ProofPulseTree @relation(fields: [treeId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@id([treeId, level, position])
+}
+
+// Append-only log of every tree change; the permanent root history.
+model ProofPulseUpdate {
+  id                    String          @id @default(uuid(7)) @db.Uuid
+  treeId                String          @db.Uuid
+  rootSeq               Int
+  kind                  PulseUpdateKind
+  leafIndex             Int
+  newLeafHash           String          @db.Char(66)
+  previousRoot          String?         @db.Char(66)
+  newRoot               String          @db.Char(66)
+  causedByAttestationId String          @db.Uuid
+  occurredAt            DateTime        @default(now()) @db.Timestamptz(3)
+
+  tree     ProofPulseTree @relation(fields: [treeId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  causedBy Attestation    @relation(fields: [causedByAttestationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([treeId, rootSeq])
+  @@index([treeId, leafIndex, rootSeq])
+}
+
+// ───────────────────────────── Revocation ─────────────────────────────
+
+// Append-only mirror of an observed on-chain revocation. Organisation-scoped: the
+// composite FKs guarantee the credential and the revoking key belong to the same
+// organisation as the row.
+model Revocation {
+  id              String           @id @default(uuid(7)) @db.Uuid
+  credentialRowId String           @unique @db.Uuid // one revocation per credential
+  organisationId  String           @db.Uuid
+  revokerKeyId    String           @db.Uuid
+  reasonCode      RevocationReason
+  transactionId   String           @unique @db.Uuid
+  blockNumber     BigInt
+  revokedAt       DateTime         @db.Timestamptz(3) // block timestamp
+  observedAt      DateTime         @default(now()) @db.Timestamptz(3)
+
+  credential   Credential            @relation(fields: [credentialRowId, organisationId], references: [id, organisationId], onDelete: Restrict, onUpdate: Restrict)
+  revokerKey   IssuerKey             @relation(fields: [revokerKeyId, organisationId], references: [id, organisationId], onDelete: Restrict, onUpdate: Restrict)
+  organisation Organisation          @relation(fields: [organisationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  transaction  BlockchainTransaction @relation(fields: [transactionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([credentialRowId, organisationId])
+}
+
+// ───────────────────────────── Chain transactions & audit ─────────────────────────────
+
+// A transaction actually broadcast by a browser wallet. targetType/targetId/targetSequence
+// record what it is trying to change BEFORE any Anchor/Revocation row exists.
+// Status is changed ONLY by server-side chain sync (Phase 9); the DB enforces legal
+// transitions. Never created from fabricated hashes.
+model BlockchainTransaction {
+  id                String       @id @default(uuid(7)) @db.Uuid
+  chainId           Int
+  txHash            String       @db.Char(66)
+  purpose           TxPurpose
+  targetType        TxTargetType
+  targetId          String       @db.Uuid // id of the Organisation / IssuerKey / CohortBatch / ProofPulseTree / Credential row
+  targetSequence    Int? // e.g. ProofPulse rootSeq or chain epoch being anchored
+  status            TxStatus     @default(PENDING)
+  fromAddress       String       @db.Char(42)
+  initiatedByUserId String       @db.Uuid
+  organisationId    String?      @db.Uuid
+  blockNumber       BigInt?
+  blockHash         String?      @db.Char(66)
+  failureReason     String?
+  submittedAt       DateTime     @default(now()) @db.Timestamptz(3)
+  confirmedAt       DateTime?    @db.Timestamptz(3)
+  finalizedAt       DateTime?    @db.Timestamptz(3)
+  updatedAt         DateTime     @updatedAt @db.Timestamptz(3)
+
+  initiatedBy  User          @relation(fields: [initiatedByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  organisation Organisation? @relation(fields: [organisationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  anchor         Anchor?
+  revocation     Revocation?
+  authorisedKeys IssuerKey[] @relation("IssuerKeyAuthoriseTx")
+  retiredKeys    IssuerKey[] @relation("IssuerKeyRetireTx")
+
+  @@unique([chainId, txHash])
+  @@index([status])
+  @@index([targetType, targetId])
+  @@index([organisationId, purpose])
+}
+
+// Append-only security history. Never the source of truth for domain state.
+model AuditEvent {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  actorUserId    String?   @db.Uuid // null for system actions
+  actorRole      UserRole?
+  organisationId String?   @db.Uuid
+  action         String
+  targetType     String
+  targetId       String?
+  beforeDigest   String?
+  afterDigest    String?
+  metadata       Json? // IDs and digests only; no claim content
+  ipHash         String?
+  userAgent      String?
+  occurredAt     DateTime  @default(now()) @db.Timestamptz(3)
+
+  actor        User?         @relation(fields: [actorUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  organisation Organisation? @relation(fields: [organisationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([targetType, targetId])
+  @@index([actorUserId, occurredAt])
+  @@index([organisationId, occurredAt])
+}

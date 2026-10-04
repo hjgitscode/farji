@@ -41,13 +41,13 @@ specified in [BLOCKCHAIN_MODEL.md](BLOCKCHAIN_MODEL.md).
 |---|---|---|
 | T1 | Candidate self-verifies (API call, form tampering) | Server-side role + ownership checks in every service; no candidate path to ReviewDecision/Attestation |
 | T2 | Issuer of Org A approves/ends/revokes for Org B | Service layer derives `organisationId` from the actor's membership, never from request input; on-chain `credentialId` embeds `orgId`; wallet bound to one Org for life |
-| T3 | **Any issuer revokes arbitrary credentials (FARJI2 weakness)** | `revokeCredential(orgId, credentialSalt, …)` recomputes the ID and requires caller's window for that `orgId`; tests prove cross-org revocation reverts |
+| T3 | **Any issuer revokes arbitrary credentials (FARJI2 weakness)** | `revokeCredential(orgId, credentialSalt, …)` recomputes the ID and requires the caller's key for that `orgId`; tests prove cross-org revocation reverts |
 | T4 | Rejection destroys history (FARJI2 weakness) | REJECT is a status transition + ReviewDecision row; no delete of Claim/ClaimVersion/Request |
 | T5 | Stored boolean "verified" flipped in DB | No such column; state derived from signatures, chain anchors and revocations on read |
 | T6 | DB tampering of evidence | Signatures and Merkle proofs re-verified on every evaluation; mismatch → `INVALID_PROOF`; audit log append-only |
-| T7 | Stolen/retired issuer key backdates a credential | `issuedAt` must lie inside key window; positive state requires anchoring within `maxAnchorDelay`; compromise marking invalidates later anchors |
+| T7 | Stolen/retired issuer key backdates a credential | `issuedAt` must lie inside the key's validity period; a retired wallet is never re-authorised; positive state requires anchoring within `maxAnchorDelay`; compromise marking invalidates later anchors |
 | T8 | Replay of old attestation / ProofPulse rollback / forked anchor history | EIP-712 domain, unique nonces, `statusSeq`, monotonic `rootSeq`, contract-computed `chainRoot` per (Organisation, attestation type) with `expectedPreviousChainRoot` check |
-| T9 | Brute-forcing claim content from on-chain digests | Per-credential random salts; no plaintext on-chain |
+| T9 | Brute-forcing claim content from on-chain digests; learning content from a revoked credential's public salt | Three distinct per-credential random salts (`credentialSalt`, `contentSalt`, `subjectSalt`); only `credentialSalt` can become public; no plaintext on-chain; DB CHECK forbids equal salts |
 | T10 | Rogue/compromised Admin authorises own wallet for an Organisation | MVP: Admin browser wallet + mandatory MFA + step-up re-auth; audit + on-chain events; Organisation notified of every wallet change. Multisig and timelock are future production hardening (accepted residual risk for the first Sepolia deployment) |
 | T11 | Issuer approves their own claim via the same account | Server rejects if `issuerUserId == claim owner userId`; residual risk with second accounts is an Organisation governance issue (documented) |
 | T12 | Impersonation — candidate claims to be someone in the Org's records | Issuer must match against source of truth using institutional identifiers; optional institutional email proof; Issuer accountable via audit |

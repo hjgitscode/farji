@@ -113,7 +113,15 @@ These concepts may exist only in `docs/`.
   I/O; time and business policy are passed in, never read or hardcoded inside.
   Solidity lives in `contracts/`.
 - Authentication is Supabase Auth; one primary application role per account, stored
-  in the application `User` table; Organisation membership is separate.
+  in the application `User` table (internal UUID id + unique `authUserId`);
+  Organisation membership is separate.
+- Issuer wallets: one `IssuerKey` row per wallet; a retired or compromised wallet is
+  never re-authorised (rotation = new row, fresh wallet). No IssuerKeyWindow.
+- Each Credential has three distinct salts (`credentialSalt`, `contentSalt`,
+  `subjectSalt`); only `credentialSalt` may ever become public.
+- Database: Prisma 7 + Supabase PostgreSQL. History tables are append-only via
+  triggers; never add cascade deletes, stored verification state or a verified flag.
+  Chain status of a transaction changes only through server-side chain sync.
 - Every important mutation writes an AuditEvent in the same transaction.
 - Every mutating service gets negative authorisation tests.
 
@@ -133,4 +141,4 @@ consistent across all documents.
 
 ## Current status
 
-Phases 0 (specification) and 1 (application foundation) complete. Next: Phase 2 — production domain/database schema.
+Phases 0 (specification), 1 (application foundation) and 2 (production domain/database schema) are COMPLETE. Phase 2 was verified against the real Supabase PostgreSQL database: the initial Prisma migration applied successfully, 29/29 database invariant tests passed, and RLS is enabled on all FARJI application tables with no policies added yet (`_prisma_migrations` is Prisma internal metadata, not a FARJI table). Next: Phase 3 — authentication and RBAC (not started).

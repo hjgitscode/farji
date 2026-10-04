@@ -14,7 +14,7 @@ Rules that apply to every phase are in [../CLAUDE.md](../CLAUDE.md).
 |---|---|---|
 | 0 | Permanent project specification | ✅ Complete (2026-10-02; review corrections applied) |
 | 1 | Application foundation | ✅ Complete |
-| 2 | Production domain/database schema | ⬜ Not started |
+| 2 | Production domain/database schema | ✅ Complete (verified on Supabase) |
 | 3 | Authentication and RBAC | ⬜ Not started |
 | 4 | Candidate backend/workflow | ⬜ Not started |
 | 5 | Issuer backend/workflow | ⬜ Not started |
@@ -51,15 +51,18 @@ Rules that apply to every phase are in [../CLAUDE.md](../CLAUDE.md).
 
 ## Phase 2 — Production domain/database schema
 - **Goal:** Prisma schema implementing DOMAIN_MODEL §3 and the workflow statuses of §5.
-- **Scope:** Entities, enums (exact names from DOMAIN_MODEL), relations, unique
-  constraints (e.g. `(signerAddress, nonce)`, one ClaimVersion per `(claimId,
-  versionNumber)`), application `User` table keyed by the Supabase Auth user id with
-  one primary role, separate OrganisationMembership, `pulseFreshnessDays`
-  configuration (default 45), append-only protections (DB privileges/triggers for
-  audit and evidence tables), migrations, seed data for local dev only.
+- **Scope:** The 21-table model in DOMAIN_MODEL §3 (`prisma/schema.prisma`), enums,
+  composite organisation-scoping foreign keys, unique constraints and partial indexes,
+  CHECK constraints, append-only / write-once / no-delete triggers, RLS enabled with
+  no policies, hand-written invariants appended to the initial migration, a lazy
+  server-only Prisma client (`lib/database/client.ts`), and database tests that run in
+  rolled-back transactions (`npm run test:db`). Application `User` row keyed by an
+  internal UUID with a unique Supabase `authUserId`; separate OrganisationMember.
+  No seed data.
 - **Must not:** add any stored "verified" boolean or verification-state column used
   as truth.
-- **Exit:** migrations apply on clean DB; schema tests for constraints and append-only rules.
+- **Exit:** migration applies on a clean Supabase database; `prisma validate`, schema tests and the database invariant tests pass; lint, typecheck, build pass.
+- **Result (COMPLETE):** the initial Prisma migration was applied to the real Supabase PostgreSQL database; 29/29 database invariant tests (`npm run test:db`) passed against it; RLS is enabled on the FARJI application tables with no policies added yet (policies are designed with application access in a later phase). `_prisma_migrations` is Prisma internal metadata, not a FARJI application table.
 
 ## Phase 3 — Authentication and RBAC
 - **Goal:** Supabase Auth integration and the `ActorContext` authorisation framework.
@@ -205,6 +208,11 @@ Rules that apply to every phase are in [../CLAUDE.md](../CLAUDE.md).
 | D20 | Chained attestations | **Independent chains per (Organisation, attestation type)** — e.g. ORG-XYZ + COHORT and ORG-XYZ + PROOF_PULSE — with `chainRoot = keccak256(batchRoot, previousChainRoot, organisationId, attestationType, epoch)`; exact Solidity encoding in Phase 8. Version lineage via `supersedesCredentialId`. |
 | D21 | ProofPulse historical storage | Retain anchored roots and enough evidence to verify historical proofs; no requirement to keep every historical intermediate node in the hot DB; archiving/versioning strategy chosen in Phase 7. |
 | D23 | ProofPulse trees per Organisation | **Exactly one ProofPulse tree per Organisation** for the MVP; it may hold many CONTINUING Credentials, with scope/type in each leaf. Each Organisation therefore has one COHORT and one PROOF_PULSE attestation chain. No `treeId`/sharding in the MVP; multiple trees or sharding are a possible later scalability extension, in which case the chain key must include `treeId`. |
+| D24 | Canonical entity naming | Claim / ClaimVersion / Credential; **Attestation** = EIP-712 signature evidence; **Anchor** = observed Merkle/chain entry. |
+| D25 | Issuer key lifecycle | **No IssuerKeyWindow.** One `IssuerKey` row per wallet authorisation lifecycle (`organisationId`, `walletAddress` globally unique, `validFrom`, `validUntil` nullable, `compromisedAt` nullable, `createdAt`). A retired or compromised wallet is **never re-authorised** in FARJI; rotation creates a new row for a fresh wallet. Historical checks use the key's original validity period. |
+| D26 | Three salts | `credentialSalt` (public if revoked), `contentSalt` and `subjectSalt` (private) are distinct per Credential. |
+| D27 | Pending-transaction targets | `BlockchainTransaction` carries `targetType` / `targetId` / `targetSequence` (no AnchorIntent table); status PENDING → CONFIRMED → FINALIZED, or FAILED / DROPPED, changed only by server-side chain sync. An Anchor/Revocation row exists only once its transaction is observed (CONFIRMED or FINALIZED). |
+| D28 | Database target and identity keys | Supabase-hosted PostgreSQL via Prisma 7 (driver adapter `pg`). UUID internal keys (v7); `User.authUserId` links Supabase Auth; email is not duplicated; current ClaimVersion = highest `versionNumber`; one Credential per ClaimVersion. |
 | D22 | Positive state + anchoring | APPROVED / SIGNED / QUEUED_FOR_ANCHOR are operational; an on-chain positive verification is claimed only after the relevant anchor meets the confirmation/finality policy. |
 
 ## Open human decisions

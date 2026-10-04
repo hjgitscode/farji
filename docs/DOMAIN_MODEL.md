@@ -18,14 +18,14 @@ Related: [ARCHITECTURE.md](ARCHITECTURE.md), [SECURITY_MODEL.md](SECURITY_MODEL.
 | **Admin** | Authenticated platform administrator. Governs organisations and issuer wallets. Never issues, attests or revokes credentials. |
 | **Public viewer** | Unauthenticated visitor (recruiter, member of the public) viewing public profiles and verification pages. |
 | **Organisation** | A real-world institution (employer, university, licensing body, association) registered on FARJI and on-chain. The source of truth for its own records. |
-| **Issuer wallet** | An EVM account (secp256k1 key) authorised on-chain to act for one Organisation during a time window. "Issuer key" means the same thing when discussing key history. |
-| **Issuer key history** | The append-only, on-chain list of time windows during which each issuer wallet was authorised for its Organisation. |
+| **Issuer wallet** | An EVM account (secp256k1 key) authorised on-chain to act for one Organisation during one validity period. It is never re-authorised once retired or compromised. In the database it is an `IssuerKey` row. |
+| **Issuer key history** | The append-only record of each issuer wallet's single validity period (`validFrom`, `validUntil`, `compromisedAt`) for its Organisation. Rotation adds a new wallet; it never reopens an old one. |
 | **Claim** | A Candidate's logical professional record (one job, one degree, one licence). Has a stable identity across edits. |
 | **ClaimVersion** | An immutable snapshot of a Claim's content. Editing a Claim creates a new ClaimVersion. |
 | **VerificationRequest** | A Candidate's request asking one Organisation to verify one specific ClaimVersion. |
 | **ReviewDecision** | An Issuer's recorded decision (APPROVE or REJECT) on a VerificationRequest, including source-of-truth review notes. |
-| **Credential** | An Organisation-issued record covering exactly one ClaimVersion's content. Has a `credentialId`, a `lifecycleType` and an issuance pipeline status. |
-| **Attestation** | An EIP-712 signature by an issuer wallet over a Credential (CredentialAttestation) or over a status change (StatusChangeAttestation). |
+| **Credential** | An Organisation-issued record covering exactly one ClaimVersion's content (one Credential per ClaimVersion in the MVP). Has a `credentialId`, a `lifecycleType` and an issuance pipeline status. |
+| **Attestation** | EIP-712 signature evidence: an issuer wallet's signature over a Credential (CredentialAttestation) or over a status change (StatusChangeAttestation). Not to be confused with an Anchor. |
 | **Lifecycle type** | One of `PERMANENT`, `CONTINUING`, `EXPIRING`. Fixed per Credential. |
 | **Verification state** | One of the eleven derived states in §6. Always computed from evidence; never stored as the source of truth. |
 | **CohortProof** | The static Merkle batch engine for PERMANENT and EXPIRING Credentials. See [MERKLE_MODEL.md](MERKLE_MODEL.md). |
@@ -41,7 +41,7 @@ Related: [ARCHITECTURE.md](ARCHITECTURE.md), [SECURITY_MODEL.md](SECURITY_MODEL.
 | **Revocation** | An on-chain, irreversible statement by the issuing Organisation that a Credential must no longer be relied on. |
 | **Supersession** | A newer attested Credential (for a newer ClaimVersion of the same Claim) replacing an older one. |
 | **Audit event** | An append-only record of an important mutation, who made it and when. |
-| **Proof bundle** | The exportable set of evidence (content, salts, attestation, Merkle proof, anchor reference) allowing independent verification. |
+| **Proof bundle** | The exportable set of evidence (content, the three salts, attestation, Merkle proof, anchor reference) allowing independent verification. |
 
 Spelling convention: British spelling for domain terms everywhere — *Organisation,
 authorise, authorised, enrolment, licence (noun)*. Enum values are
@@ -66,114 +66,194 @@ approve a Claim owned by their own user account.
 
 ## 3. Entities
 
-Fields listed are the domain-relevant ones; the Prisma schema (Phase 2) may add
-technical columns. "Append-only" means rows are never updated in meaning-bearing
-columns and never deleted by application code.
+The final database model (Phase 2B; `prisma/schema.prisma` is the implementation).
+21 tables. "Append-only" means rows are never updated or deleted (enforced by DB
+triggers). Every foreign key is `onDelete: Restrict`; nothing cascades. Every primary
+key is an internal UUID; blockchain values are unique business identifiers, never
+primary keys. Hex values (`bytes32`, addresses, signatures) are stored as lowercase
+`0x…` CHAR with format CHECKs. **No table stores a verification state, a verified
+flag, a trust score or a reputation score.**
+
+Naming: **Claim / ClaimVersion** = the candidate's editable record and its immutable
+snapshots. **Credential** = the organisation-issued record for one ClaimVersion.
+**Attestation** = EIP-712 signature evidence. **Anchor** = an observed on-chain entry
+in an attestation chain.
 
 ### 3.1 User
-- `id` (equal to the Supabase Auth user id), `email`, `role` (CANDIDATE | ISSUER |
-  ADMIN — one primary role per account), MFA status.
-- Supabase Auth owns credentials and sessions; the application `User` row owns the
-  role. The role is never read from client-editable auth metadata.
+- `id` (internal UUID), `authUserId` (Supabase Auth user id, unique), `role`
+  (CANDIDATE | ISSUER | ADMIN — one primary role), `status` (ACTIVE | SUSPENDED |
+  DEACTIVATED).
+- Email and credentials live only in Supabase Auth and are not duplicated. MFA
+  assurance is read from the session, not stored. The role is never read from
+  client-editable auth metadata. `authUserId` is immutable; users are never deleted.
 - Invariant: role changes are Admin-only and audited.
 
-### 3.2 CandidateProfile
-- `userId`, `handle` (public URL slug), `displayName`, `headline`, `about`, `location`,
-  `visibility` (PUBLIC | UNLISTED | PRIVATE).
-- Profile text is ordinary editable data (not versioned evidence).
+### 3.2 Profile
+- `userId` (unique), `handle` (unique public slug), `displayName`, `headline`, `about`,
+  `location`, `visibility` (PUBLIC | UNLISTED | PRIVATE, default PRIVATE).
+- Ordinary editable data, not versioned evidence. Candidates only (service-enforced).
 
 ### 3.3 Organisation
-- `id`, `orgId` (bytes32 on-chain identifier), `slug`, `legalName`, `displayName`,
-  `kind` (EMPLOYER | EDUCATION | LICENSING_BODY | ASSOCIATION | OTHER),
+- `orgId` (bytes32, unique), `slug` (unique), `legalName`, `displayName`, `kind`,
   `status` (PENDING_ONBOARDING | ACTIVE | SUSPENDED), `pulseFreshnessDays`
-  (configurable; initial platform default **45**).
-- Suspension blocks new issuance; it never erases or invalidates history.
-- The freshness window is business policy: it is stored as configuration and passed
-  to the verification engine as input, never hardcoded inside the engine.
+  (configurable, default **45**, CHECK 1–3650).
+- Suspension blocks new issuance; it never erases or invalidates history. Never deleted.
+- The freshness window is business policy passed to the verification engine, never
+  hardcoded in it.
 
-### 3.4 OrganisationMembership
-- `userId`, `organisationId`, `role` (ISSUER), `status` (INVITED | ACTIVE | REMOVED), timestamps.
-- Removal is a status change, not a deletion.
+### 3.4 OrganisationMember
+- `userId`, `organisationId`, `status` (INVITED | ACTIVE | REMOVED), `invitedAt`,
+  `joinedAt`, `removedAt`.
+- Only users with role ISSUER can be members (trigger). At most one live (INVITED or
+  ACTIVE) membership per user (partial unique index). Removal is a status change.
 
-### 3.5 IssuerWallet (off-chain mirror)
-- `address`, `organisationId`, mirrored key-history windows (`validFrom`, `validUntil`,
-  `compromisedSince`), linked membership (who operates it).
-- **The chain is authoritative** for issuer key history. The DB copy is a cache
-  rebuilt from chain events and must never be used to *grant* validity that the
-  chain does not show.
+### 3.5 IssuerKey
+- One row per issuer wallet authorisation lifecycle: `organisationId`,
+  `walletAddress` (globally unique), `validFrom`, `validUntil` (nullable), `compromisedAt`
+  (nullable), `operatorMemberId` (nullable), `authoriseTransactionId` and
+  `retireTransactionId` (nullable, → BlockchainTransaction), `createdAt`.
+- **There is no IssuerKeyWindow and a wallet has no second window.** Once a wallet is
+  retired or marked compromised it is **never re-authorised in FARJI**: the address is
+  globally unique, so a second row for the same address is impossible. Key rotation
+  creates a **new IssuerKey row for a fresh wallet**.
+- `walletAddress`, `organisationId`, `validFrom` are immutable; `validUntil` and
+  `compromisedAt` can be set once and never changed. Rows are never deleted.
+- Historical verification asks whether the signing timestamp lay inside the key's
+  original valid period (`validFrom <= t` and `validUntil` is null or `t < validUntil`),
+  and whether `compromisedAt` precedes it.
+- The chain is authoritative for key history; this table is a mirror that must never
+  be used to *grant* validity the chain does not show.
 
 ### 3.6 Claim
-- `id`, `candidateId`, `category` (EXPERIENCE | EDUCATION | CERTIFICATION | MEMBERSHIP),
+- `candidateId`, `category` (EXPERIENCE | EDUCATION | CERTIFICATION | MEMBERSHIP),
   `organisationId` (nullable — free-text organisations cannot be verified),
-  `currentVersionId`, `visibility`, `archivedAt` (soft-hide; never hard delete once
-  any VerificationRequest exists).
+  `visibility`, `archivedAt` (soft-hide).
+- Stable identity of one real-world job/degree/licence. Never deleted. The **current
+  version is the ClaimVersion with the highest `versionNumber`** (no pointer column).
 
 ### 3.7 ClaimVersion (append-only)
-- `id`, `claimId`, `versionNumber` (1, 2, 3 … per Claim), `content` (typed per
-  category: title, organisation name, location, start/end dates, degree/field,
-  licence number, expiry, description …), `proposedLifecycleType`,
-  `authoredBy` (CANDIDATE | ISSUER — ISSUER only for cohort issuance, §7.3),
-  `createdAt`.
-- Invariant: never updated after creation. An edit always inserts version N+1 and
-  moves `Claim.currentVersionId`.
+- `claimId`, `versionNumber` (≥ 1, unique per Claim), `content` (JSON, typed per
+  category — candidate personal data, never on-chain), `proposedLifecycleType`
+  (the candidate's proposal), `authoredBy` (CANDIDATE | ISSUER), `createdAt`.
+- An edit always inserts version N+1. `proposedLifecycleType` is only a proposal; the
+  authoritative lifecycle type lives on the issued Credential.
 
-### 3.8 VerificationRequest (append-only history)
-- `id`, `claimVersionId`, `organisationId`, `candidateId`, `status`,
-  candidate-supplied matching hints (institutional identifier, institutional email,
-  supporting note), timestamps.
-- Status machine in §5.1. **Rejection never deletes the request, the Claim or the
-  ClaimVersion.**
+### 3.8 VerificationRequest
+- `claimVersionId` (one exact ClaimVersion), `organisationId`, `candidateId`, `status`
+  (§5.1), `institutionalIdentifier`, `candidateNote`, `submittedAt`, `closedAt`.
+- At most one open (SUBMITTED | IN_REVIEW) request per ClaimVersion (partial unique
+  index). Terminal statuses never change again. Identity columns are immutable. Never
+  deleted.
 
 ### 3.9 ReviewDecision (append-only)
-- `id`, `verificationRequestId`, `issuerUserId`, `decision` (APPROVE | REJECT),
-  `reasonCode`, `notes`, `sourceOfTruthReference` (an internal reference to the
-  Organisation's own record — never a copy of the record), `decidedAt`.
+- `verificationRequestId` (unique — one decision per request), `organisationId`,
+  `reviewerMemberId`, `decision` (APPROVE | REJECT), `rejectionReason` (required
+  exactly when REJECT), `notes` (internal), `sourceOfTruthReference`, `decidedAt`.
+- Composite foreign keys guarantee the request and the reviewing member both belong
+  to `organisationId`. The reviewer must be an ACTIVE member and can never be the
+  claim's owner (trigger). A rejection never deletes the claim, version or request,
+  and is not shown publicly.
 
 ### 3.10 Credential
-- `id`, `credentialId` (bytes32, see [BLOCKCHAIN_MODEL.md](BLOCKCHAIN_MODEL.md) §4),
-  `credentialSalt`, `organisationId`, `claimVersionId`, `lifecycleType`,
-  `subjectCommitment`, `contentDigest`, `validFrom`, `validUntil` (EXPIRING only),
-  `supersedesCredentialId` (nullable), `pipelineStatus` (§5.2), `issuedAt`.
-- One Credential covers exactly one ClaimVersion. A ClaimVersion has at most one
-  non-revoked Credential.
-- `lifecycleType` is fixed at issuance and never changes.
+- `organisationId`, `claimVersionId` (unique — **one Credential per ClaimVersion** in
+  the MVP), `reviewDecisionId` (nullable, unique), `lifecycleType` (authoritative,
+  immutable), `pipelineStatus` (§5.2, forward-only), `credentialId` (bytes32, unique),
+  `credentialSalt`, `contentSalt`, `subjectSalt`, `subjectCommitment`,
+  `contentDigest`, `validFrom`, `validUntil` (exactly for EXPIRING), `issuedAt`,
+  `supersedesCredentialId` (nullable, unique — a linear chain).
+- **Three distinct salts** (a CHECK forbids equality): `credentialSalt` feeds
+  `credentialId` and becomes public if the credential is ever revoked; `contentSalt`
+  salts `contentDigest`; `subjectSalt` salts `subjectCommitment`. The latter two stay
+  private.
+- Cryptographic columns are nullable while AWAITING_SIGNATURE (Phase 6 fills them);
+  a CHECK requires them all once the pipeline moves past it. They are write-once.
+- Supersession is derived: a Credential is superseded when another names it in
+  `supersedesCredentialId`. Never deleted.
 
 ### 3.11 Attestation (append-only)
-- `id`, `type` (CREDENTIAL | STATUS_CHANGE), `credentialId`, `signerAddress`,
-  `typedDataHash`, `signature`, `nonce`, `issuedAt`, `chainId`, `verifyingContract`.
-- Unique on (`signerAddress`, `nonce`).
+- `kind` (CREDENTIAL | STATUS_CHANGE), `credentialRowId`, `organisationId`,
+  `signerKeyId` (→ IssuerKey), `typedDataHash` (unique), `signature`, `nonce`,
+  `issuedAt` (the signed timestamp), `chainId`, `verifyingContract`; for STATUS_CHANGE
+  also `statusSeq`, `newStatus`, `effectiveAt`.
+- EIP-712 evidence only: no secrets, no claim content (the message is recomputed from
+  the ClaimVersion and salts and compared to `typedDataHash`). Composite foreign keys
+  force the credential and the signing key to belong to the same Organisation.
+- Unique on (`signerKeyId`, `nonce`); one CREDENTIAL attestation per credential; one
+  STATUS_CHANGE per (credential, `statusSeq`).
 
 ### 3.12 CohortBatch / CohortLeaf
-- Batch: `id`, `organisationId`, `label`, `status` (OPEN | SEALED | ANCHORED),
-  `root`, `leafCount`, `chainRoot` (of its Anchor), timestamps. Leaves:
-  `credentialId`, `leafHash`, `position`. Sealed batches are immutable.
+- Batch: `organisationId`, `label`, `status` (OPEN | SEALED | ANCHORED), `batchRoot`,
+  `leafCount`, `sealedAt`, `anchorId`. At most one OPEN batch per Organisation. Root,
+  count, seal time and anchor are write-once; status only moves forward.
+- Leaf: `batchId`, `credentialRowId` (unique), `organisationId`, `position`,
+  `leafHash`, `proof` (JSON, written once at sealing). Leaves only enter an OPEN
+  batch, never for CONTINUING credentials, and are frozen once the batch is sealed.
 
-### 3.13 PulseTree / PulseLeaf / PulseRoot / PulseEpoch
-- Tree: one per Organisation (MVP): `organisationId`, `depth`, `currentRoot`,
-  `currentRootSeq`.
-- Leaf: `leafIndex`, `credentialId`, `scope` (EMPLOYMENT | ENROLMENT | MEMBERSHIP),
-  `status` (ACTIVE | ENDED), `statusSeq`, `statusEffectiveAt`, `leafHash`.
-- Roots, epochs and historical proof material: see
-  [MERKLE_MODEL.md](MERKLE_MODEL.md) §3.5.
+### 3.13 ProofPulseTree / ProofPulseLeaf / ProofPulseNode / ProofPulseUpdate
+- **Tree:** exactly **one per Organisation** (unique `organisationId`): `depth`
+  (immutable), `currentRoot`, `currentRootSeq` and `nextLeafIndex` (both monotonic).
+  No `treeId`/sharding in the MVP.
+- **Leaf:** `treeId`, `credentialRowId` (unique), `leafIndex` (unique per tree,
+  assigned once), `scope` (EMPLOYMENT | ENROLMENT | MEMBERSHIP), `status` (ACTIVE |
+  ENDED — **REVOKED is deliberately not a value**), `statusSeq`, `statusEffectiveAt`,
+  `leafHash`. Only CONTINUING credentials; an ENDED leaf never becomes ACTIVE again.
+- **Node:** `(treeId, level, position)` → `hash`: the current node values, a derivable
+  cache that makes path updates cheap.
+- **Update (append-only):** `(treeId, rootSeq)` unique — `kind` (INSERT |
+  STATUS_CHANGE), `leafIndex`, `newLeafHash`, `previousRoot`, `newRoot`,
+  `causedByAttestationId`. This log is the permanent root history; the algorithm that
+  writes it is Phase 7. Leaf and Node rows are rewritable projections; ProofPulseUpdate
+  and Anchor are the evidence.
 
-### 3.14 Anchor (off-chain mirror)
-- `chainRoot`, `attestationType` (COHORT | PROOF_PULSE), `organisationId`,
-  `batchRoot`, `previousChainRoot`, `epoch`, `rootSeq` (PROOF_PULSE only),
-  `anchoredBy`, `blockNumber`, `blockTimestamp`, `txHash`,
-  `finality` (SUBMITTED | INCLUDED | FINALISED | DROPPED).
+### 3.14 Anchor (append-only)
+- `organisationId`, `attestationType` (COHORT | PROOF_PULSE), `epoch` (≥ 1),
+  `batchRoot`, `previousChainRoot`, `chainRoot` (unique), `rootSeq` (exactly for
+  PROOF_PULSE), `leafCount`, `anchorerKeyId`, `transactionId` (unique), `blockNumber`,
+  `blockTimestamp`.
+- An Anchor represents a **successfully observed** on-chain attestation: it can only be
+  inserted from a CONFIRMED or FINALIZED BlockchainTransaction whose purpose matches
+  its type. Whether it meets the finality policy is read from that transaction.
+- Unique (`organisationId`, `attestationType`, `epoch`) and unique (`organisationId`,
+  `attestationType`, `previousChainRoot`): COHORT and PROOF_PULSE chains are
+  independent, and a chain cannot fork. Epoch 1 links to the zero hash.
+- A ProofPulse epoch is simply a PROOF_PULSE Anchor (no separate epoch table).
 
-### 3.15 Revocation (off-chain mirror)
-- `credentialId`, `organisationId`, `reasonCode`, `revokedBy`, `revokedAt`,
-  `txHash`, `finality`. Irreversible.
+### 3.15 Revocation (append-only)
+- `credentialRowId` (unique — one per credential), `organisationId`, `revokerKeyId`,
+  `reasonCode`, `transactionId` (unique), `blockNumber`, `revokedAt`.
+- Organisation-scoped by composite foreign keys: the credential and the revoking key
+  must both belong to `organisationId`. Recorded only from a CONFIRMED or FINALIZED
+  `REVOKE_CREDENTIAL` transaction. Irreversible. Never shown as ENDED, and vice versa.
 
-### 3.16 ChainTransaction
-- `txHash`, `purpose`, `fromAddress`, `status`, `blockNumber`, `confirmations`.
-- Never fabricated: a row exists only for a transaction actually broadcast.
+### 3.16 BlockchainTransaction
+- `chainId`, `txHash` (unique together), `purpose`, `status` (PENDING | CONFIRMED |
+  FINALIZED | FAILED | DROPPED), `fromAddress`, `initiatedByUserId`, `organisationId`,
+  `blockNumber`, `blockHash`, `failureReason`, timestamps.
+- **Target linkage** — what the transaction is trying to change, known before any
+  Anchor/Revocation exists: `targetType` (ORGANISATION | ISSUER_KEY | COHORT_BATCH |
+  PROOF_PULSE_TREE | CREDENTIAL), `targetId` (the UUID of that row; deliberately not a
+  foreign key because it is polymorphic) and `targetSequence` (nullable; e.g. the
+  `rootSeq` or chain epoch being anchored). No separate "anchor intent" table.
+- Born PENDING with no block data. Legal transitions: PENDING → CONFIRMED | FAILED |
+  DROPPED; CONFIRMED → FINALIZED | PENDING (reorg) | DROPPED. FINALIZED, FAILED and
+  DROPPED are terminal; PENDING cannot jump to FINALIZED. CONFIRMED/FINALIZED require
+  an observed block number and hash. **Only server-side chain synchronisation
+  changes status; the client never marks a transaction confirmed or finalised.**
+  Rows come only from a hash a wallet really returned — never fabricated.
 
 ### 3.17 AuditEvent (append-only)
-- `id`, `actorUserId`, `actorRole`, `organisationId` (if any), `action`, `targetType`,
-  `targetId`, `beforeDigest`, `afterDigest`, `requestMeta` (IP hash, user agent),
-  `occurredAt`. See [SECURITY_MODEL.md](SECURITY_MODEL.md) §8.
+- `actorUserId` (null for system), `actorRole`, `organisationId`, `action`,
+  `targetType`, `targetId`, `beforeDigest`, `afterDigest`, `metadata` (IDs and digests
+  only), `ipHash`, `userAgent`, `occurredAt`. See [SECURITY_MODEL.md](SECURITY_MODEL.md) §8.
+- Security history only; never the source of truth for domain state.
+
+### 3.18 Sensitive data placement
+Candidate personal data lives only in `Profile` and `ClaimVersion.content` (plus the
+internal `institutionalIdentifier`/`candidateNote` on a request). It is not copied
+into Attestation, Anchor, Credential, AuditEvent or the chain — those hold IDs,
+salted digests and commitments. Email is not stored by FARJI (Supabase Auth only).
+Private salts (`contentSalt`, `subjectSalt`) are sensitive and must never be logged,
+returned by public endpoints or placed in audit metadata.
 
 ---
 
@@ -350,7 +430,7 @@ current, unsigned content into a verified badge.
 | MODIFIED | Superseded by a newer verified version |
 | INVALID_PROOF | Verification failed |
 
-Cryptographic detail (hashes, signer, key window, Merkle proof, anchor tx) is shown
+Cryptographic detail (hashes, signer, key validity period, Merkle proof, anchor tx) is shown
 only behind "View verification details".
 
 ### 6.4 Caching
@@ -408,13 +488,14 @@ A ReviewDecision is rejected server-side if `issuerUserId == claim.candidate.use
 
 Never delete or rewrite: ClaimVersion, VerificationRequest, ReviewDecision,
 Attestation, sealed CohortBatch and its leaves, PulseLeaf status history
-(`statusSeq`), PulseEpoch, anchored ProofPulse roots together with enough proof
+(`statusSeq`), ProofPulseUpdate, anchored ProofPulse roots together with enough proof
 material to verify historical proofs against them ([MERKLE_MODEL.md](MERKLE_MODEL.md)
-§3.5 — may be archived out of the hot database), Anchor, Revocation, IssuerWallet key
-history, ChainTransaction, AuditEvent.
+§3.5 — may be archived out of the hot database), Anchor, Revocation, IssuerKey
+history, BlockchainTransaction (status moves only by legal transitions), AuditEvent.
 
 Allowed mutations: workflow status transitions defined in §5, profile text,
-visibility flags, `Claim.currentVersionId`, pipeline status advancement.
+visibility flags, workflow and pipeline status advancement, ProofPulseLeaf/ProofPulseNode
+projections, BlockchainTransaction status (legal transitions only, by server-side chain sync).
 
 Privacy erasure (e.g. a deletion request) is handled by crypto-shredding — removing
 off-chain content and salts so on-chain commitments become unlinkable — under a

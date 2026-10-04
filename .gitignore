@@ -26,3 +26,6 @@ Thumbs.db
 .idea/
 .vscode/
 .claude/settings.local.json
+
+# generated Prisma client
+/lib/database/generated/
