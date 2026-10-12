@@ -15,7 +15,7 @@ Rules that apply to every phase are in [../CLAUDE.md](../CLAUDE.md).
 | 0 | Permanent project specification | ✅ Complete (2026-10-02; review corrections applied) |
 | 1 | Application foundation | ✅ Complete |
 | 2 | Production domain/database schema | ✅ Complete (verified on Supabase) |
-| 3 | Authentication and RBAC | ⬜ Not started |
+| 3 | Authentication and RBAC | ✅ Complete (automated gates pass; live Supabase auth verification passed) |
 | 4 | Candidate backend/workflow | ⬜ Not started |
 | 5 | Issuer backend/workflow | ⬜ Not started |
 | 6 | Cryptography layer | ⬜ Not started |
@@ -66,12 +66,26 @@ Rules that apply to every phase are in [../CLAUDE.md](../CLAUDE.md).
 
 ## Phase 3 — Authentication and RBAC
 - **Goal:** Supabase Auth integration and the `ActorContext` authorisation framework.
-- **Scope:** Sign-up/sign-in with Supabase Auth, server-side session validation,
-  one primary role per account read from the application `User` table, Issuer
-  invitations, Admin provisioning, MFA for Issuer/Admin, step-up re-auth hook, route
-  protection, `ActorContext` resolution, authorisation helpers, audit of auth/role
-  events.
-- **Exit:** negative tests prove each role cannot reach others' routes or services.
+- **Delivered (see D29–D32):** candidate sign-up, sign-in and sign-out through server
+  actions; email-confirmation callback; `proxy.ts` session refresh and optimistic
+  redirect; server-side guards (`requireAuthenticatedUser`, `requireCandidate`,
+  `requireIssuer`, `requireAdmin`) in every private layout and page; User row
+  synchronisation (always CANDIDATE, idempotent, audited); issuer
+  OrganisationMember enforcement; open-redirect-safe `next` handling; public/publishable
+  Supabase key validation; 58 focused tests (`tests/auth/`).
+- **Deliberately not in Phase 3 (deferred, not done):** issuer invitations, admin
+  provisioning / role assignment, MFA for Issuer and Admin, step-up re-authentication,
+  and audit of role changes. These need the trusted administrative path (Admin UI,
+  Phase 12) and are tracked as open decision D33.
+- **Exit:** negative tests prove each role cannot reach others' routes (met);
+  service-level negative tests are added with each mutating service in Phases 4–5.
+- **Live verification (PASSED, against real Supabase Auth + the FARJI database):** real
+  signup, login and logout work; a new self-signup creates a Supabase auth user and a
+  FARJI `User` row with role CANDIDATE only; the candidate lands on `/candidate` and
+  cannot access `/issuer` or `/admin`. For local verification, email confirmation was
+  temporarily disabled because Supabase's default SMTP did not deliver the confirmation
+  email; this does not change the FARJI role model or RBAC design. A custom SMTP
+  provider is needed before enabling email confirmation for production (Phase 14).
 
 ## Phase 4 — Candidate backend/workflow
 - **Goal:** Candidate-side services.
@@ -212,6 +226,10 @@ Rules that apply to every phase are in [../CLAUDE.md](../CLAUDE.md).
 | D25 | Issuer key lifecycle | **No IssuerKeyWindow.** One `IssuerKey` row per wallet authorisation lifecycle (`organisationId`, `walletAddress` globally unique, `validFrom`, `validUntil` nullable, `compromisedAt` nullable, `createdAt`). A retired or compromised wallet is **never re-authorised** in FARJI; rotation creates a new row for a fresh wallet. Historical checks use the key's original validity period. |
 | D26 | Three salts | `credentialSalt` (public if revoked), `contentSalt` and `subjectSalt` (private) are distinct per Credential. |
 | D27 | Pending-transaction targets | `BlockchainTransaction` carries `targetType` / `targetId` / `targetSequence` (no AnchorIntent table); status PENDING → CONFIRMED → FINALIZED, or FAILED / DROPPED, changed only by server-side chain sync. An Anchor/Revocation row exists only once its transaction is observed (CONFIRMED or FINALIZED). |
+| D29 | Authoritative role | `User.role` in the FARJI database decides every authorization. Supabase `user_metadata` / `app_metadata` are never read; only the server-verified Supabase user id (`auth.getUser()`) is used. |
+| D30 | Self-signup | Always CANDIDATE. The signup form reads only email and password; no `options.data` is sent to Supabase; `syncAppUser` has no role parameter. ISSUER and ADMIN are obtainable only through a future trusted administrative path. |
+| D31 | Route protection layers | `proxy.ts` (Next.js 16) refreshes the session and optimistically redirects anonymous visitors from `/candidate`, `/issuer`, `/admin`; the real boundary is the server-side guard called in every private layout AND page (layouts alone do not gate pages). A test fails if a private page/layout lacks its guard. |
+| D32 | Issuer access | Requires `User.role = ISSUER`, an ACTIVE `OrganisationMember`, `organisationId` is derived server-side from that row, never from the request. The organisation itself must also be `ACTIVE`; a SUSPENDED or PENDING_ONBOARDING organisation denies issuer dashboard access (`/access-denied?reason=organisation_inactive`). Suspended/deactivated users are denied everywhere. |
 | D28 | Database target and identity keys | Supabase-hosted PostgreSQL via Prisma 7 (driver adapter `pg`). UUID internal keys (v7); `User.authUserId` links Supabase Auth; email is not duplicated; current ClaimVersion = highest `versionNumber`; one Credential per ClaimVersion. |
 | D22 | Positive state + anchoring | APPROVED / SIGNED / QUEUED_FOR_ANCHOR are operational; an on-chain positive verification is claimed only after the relevant anchor meets the confirmation/finality policy. |
 
@@ -219,6 +237,7 @@ Rules that apply to every phase are in [../CLAUDE.md](../CLAUDE.md).
 
 | # | Decision | Needed by | Proposed default |
 |---|---|---|---|
+| D33 | Trusted issuer/admin provisioning path, MFA for Issuer/Admin, step-up re-authentication, role-change audit (deferred from Phase 3) | Phase 12 (Admin UI) | Admin-only invitation flow using a server-only Supabase admin credential; Supabase MFA |
 | D7 | `maxAnchorDelay` (signature-to-anchor bound) | Phase 8 | e.g. 30 days, configurable |
 | D11 | Issuer-initiated cohort issuance + claim invitations in v1 scope? | Phase 5 | In scope, mechanism TBD |
 | D12 | Supporting document uploads (object storage) in v1? | Phase 4 | Optional |

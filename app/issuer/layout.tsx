@@ -1,5 +1,7 @@
 import { PrivateShell } from "@/components/layout/PrivateShell";
+import { requireIssuer } from "@/lib/auth/guards";
 
-export default function IssuerLayout({ children }: { children: React.ReactNode }) {
+export default async function IssuerLayout({ children }: { children: React.ReactNode }) {
+  await requireIssuer("/issuer");
   return <PrivateShell>{children}</PrivateShell>;
 }

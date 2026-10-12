@@ -57,7 +57,12 @@ specified in [BLOCKCHAIN_MODEL.md](BLOCKCHAIN_MODEL.md).
 | T16 | Mock/simulated chain data presented as real | Prohibited; tx records only from real broadcasts; on-chain positive states only after the confirmation/finality policy is met |
 | T17 | Chain reorg displays a non-existent anchor | Confirmation/finality policy (default `finalized` blocks) before any on-chain positive state |
 | T18 | Operational status (APPROVED / SIGNED / QUEUED_FOR_ANCHOR) shown as a verification result | Only derived verification states are rendered as badges; operational statuses are labelled as progress |
-| T19 | Role escalation via editable auth metadata | Role stored in the application `User` table (server-written), never read from Supabase user-editable metadata |
+| T19 | Role escalation via editable auth metadata | Role stored in the application `User` table (server-written), never read from Supabase user-editable metadata; signup sends no metadata; a test forbids reading `user_metadata`/`app_metadata` in `lib/auth` |
+| T20 | Open redirect via `next` / returnTo | `next` accepted only as a same-site absolute path (no scheme, host, `//`, `\`, `..`, query) AND only inside the signed-in user's own role area; login-redirect URLs are rebuilt from validated paths |
+| T21 | Private page reachable because only its layout was checked | Guard called in every private layout and page; a structural test fails if any page/layout/route under `app/candidate|issuer|admin` lacks its guard call |
+| T22 | Issuer acts without an organisation, or for the wrong one | Guard requires an ACTIVE `OrganisationMember`; `organisationId` comes only from that row, never from request input |
+| T23 | Service-role key leaks to the browser or is used by the web app | Only the publishable key is read; secret/service-role keys are rejected by env validation; a test forbids reading `SERVICE_ROLE`/`SECRET` env vars in app code |
+| T24 | Account enumeration through login errors | One generic message for unknown email and wrong password; signup returns the same "check your email" outcome when confirmation is on |
 
 ---
 
@@ -104,15 +109,44 @@ specified in [BLOCKCHAIN_MODEL.md](BLOCKCHAIN_MODEL.md).
 
 ## 6. Authentication
 
-- **Supabase Auth** (decided, ROADMAP D1), integrated server-side with Next.js.
-  Secure, HttpOnly, SameSite cookies; session validated on the server for every
-  request; session rotation on privilege change.
+- **Supabase Auth** (decided, ROADMAP D1), integrated server-side with Next.js 16
+  through `@supabase/ssr`. Tokens live in HttpOnly cookies managed by the library
+  (never localStorage). Sign-in, sign-up and sign-out are Server Actions (Next.js
+  checks the request origin); FARJI never handles or hashes passwords.
+- **Identity vs authorization.** Supabase supplies identity only: the user id returned
+  by `auth.getUser()`, which validates the token with the Supabase Auth server
+  (`getSession()` is never trusted for decisions). `user_metadata` and `app_metadata`
+  are never read for authorization; a test enforces this.
 - One primary application role per account (CANDIDATE, ISSUER or ADMIN), stored in
-  the application `User` table. Organisation membership is a separate record.
-- Candidates: email/OAuth sign-in; no wallet.
-- Issuers: invitation-only; MFA required.
-- Admins: provisioned out-of-band; MFA required; recent re-authentication (step-up)
-  for sensitive actions (wallet authorisation, Organisation suspension, role changes).
+  the application `User` table (`User.role` is the only authority). Organisation
+  membership is a separate record.
+- **Account provisioning.** The first time a verified Supabase user is seen, a `User`
+  row is created with role CANDIDATE and an audit event (`USER_CREATED`), idempotently
+  (unique `authUserId`, concurrent-create safe). An existing row is never modified, so
+  ISSUER/ADMIN roles survive repeated logins. Signup input is allowlisted to email and
+  password: no role can be requested, and no metadata is sent to Supabase.
+  An administrator must create the ISSUER/ADMIN `User` row before that person's first
+  login; otherwise they are created as CANDIDATE and need an audited role change.
+- **Route protection.** `proxy.ts` refreshes the session and optimistically redirects
+  anonymous visitors away from `/candidate`, `/issuer`, `/admin`. The enforcement point
+  is the server-side guard (`lib/auth/guards.ts`) called in every private layout and
+  page; Next.js layouts do not re-render on client navigation and do not gate their
+  children. Issuers must also hold an ACTIVE `OrganisationMember` of an ACTIVE
+  Organisation (suspended or not-yet-onboarded organisations are denied); the
+  organisation id is read from that row. Suspended/deactivated users are denied.
+- **Redirects.** Post-login destinations come from the database role. A `next` value is
+  accepted only as a plain same-site path inside the user's own role area; denial
+  pages show fixed text selected by a whitelisted code.
+- **Supabase keys.** Only the project URL and the publishable (or legacy anon) key are
+  used by the web app; a `sb_secret_…` or `service_role` key is rejected at startup.
+- **RLS.** Unchanged: enabled on every FARJI table with no policies. The app reaches
+  the database only through server-side Prisma; Supabase's Data API stays locked out.
+- Candidates: email + password; no wallet.
+- **Not yet implemented (ROADMAP D33):** issuer invitations / admin provisioning path,
+  MFA for Issuers and Admins, and step-up re-authentication for sensitive admin actions.
+  The target design remains: Issuers invitation-only with MFA; Admins provisioned
+  out-of-band with MFA and recent re-authentication for wallet authorisation,
+  Organisation suspension and role changes.
 - Wallet connection is **not** authentication; it is an additional factor for
   on-chain actions.
 

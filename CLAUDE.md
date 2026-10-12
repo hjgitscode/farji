@@ -115,6 +115,13 @@ These concepts may exist only in `docs/`.
 - Authentication is Supabase Auth; one primary application role per account, stored
   in the application `User` table (internal UUID id + unique `authUserId`);
   Organisation membership is separate.
+- Auth (Phase 3): Supabase Auth is identity only. `User.role` in the FARJI database is
+  the sole authority; never read `user_metadata`/`app_metadata` for decisions. Self-signup
+  is always CANDIDATE. Call `requireCandidate/requireIssuer/requireAdmin` (lib/auth/guards)
+  in EVERY private layout, page and (later) server action — layouts alone do not gate
+  pages. Issuer organisation comes from the ACTIVE OrganisationMember row (and the
+  Organisation itself must be ACTIVE), never from input. Validate any `next`/redirect target with `safeInternalPath`. Web app uses only
+  the Supabase publishable key; never a service-role key.
 - Issuer wallets: one `IssuerKey` row per wallet; a retired or compromised wallet is
   never re-authorised (rotation = new row, fresh wallet). No IssuerKeyWindow.
 - Each Credential has three distinct salts (`credentialSalt`, `contentSalt`,
@@ -141,4 +148,4 @@ consistent across all documents.
 
 ## Current status
 
-Phases 0 (specification), 1 (application foundation) and 2 (production domain/database schema) are COMPLETE. Phase 2 was verified against the real Supabase PostgreSQL database: the initial Prisma migration applied successfully, 29/29 database invariant tests passed, and RLS is enabled on all FARJI application tables with no policies added yet (`_prisma_migrations` is Prisma internal metadata, not a FARJI table). Next: Phase 3 — authentication and RBAC (not started).
+Phases 0 (specification), 1 (application foundation) and 2 (production domain/database schema) are COMPLETE. Phase 2 was verified against the real Supabase PostgreSQL database: the initial Prisma migration applied successfully, 29/29 database invariant tests passed, and RLS is enabled on all FARJI application tables with no policies added yet (`_prisma_migrations` is Prisma internal metadata, not a FARJI table). Phase 3 (Supabase Auth + RBAC) is COMPLETE: candidate sign-up/sign-in/sign-out, `proxy.ts`, server-side guards, issuer enforcement (ACTIVE OrganisationMember of an ACTIVE Organisation), 61 auth tests; lint, typecheck, 70 tests, build and db:validate pass. Live Supabase auth verification PASSED: real signup, login and logout work; self-signup creates a Supabase auth user and a FARJI User row with role CANDIDATE only; the candidate lands on /candidate and cannot access /issuer or /admin. (Email confirmation was temporarily disabled for local verification because Supabase's default SMTP did not deliver mail; this does not change the role model or RBAC.) Deferred to ROADMAP D33: issuer/admin provisioning path, MFA, step-up re-auth. Next: Phase 4 — candidate backend/workflow (not started).
