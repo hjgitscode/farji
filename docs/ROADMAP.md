@@ -16,7 +16,7 @@ Rules that apply to every phase are in [../CLAUDE.md](../CLAUDE.md).
 | 1 | Application foundation | ✅ Complete |
 | 2 | Production domain/database schema | ✅ Complete (verified on Supabase) |
 | 3 | Authentication and RBAC | ✅ Complete (automated gates pass; live Supabase auth verification passed) |
-| 4 | Candidate backend/workflow | ⬜ Not started |
+| 4 | Candidate backend/workflow | ✅ Complete (automated gates and 49/49 DB tests pass; no schema change; signed-in candidate click-through PASSED: dashboard, My records, claim create, v1→v2 edit with v1 preserved, ACTIVE organisation selectable, request submit, history, withdraw with the withdrawn request retained) |
 | 5 | Issuer backend/workflow | ⬜ Not started |
 | 6 | Cryptography layer | ⬜ Not started |
 | 7 | CohortProof + dynamic ProofPulse Merkle engines | ⬜ Not started |
@@ -89,10 +89,20 @@ Rules that apply to every phase are in [../CLAUDE.md](../CLAUDE.md).
 
 ## Phase 4 — Candidate backend/workflow
 - **Goal:** Candidate-side services.
-- **Scope:** Profile CRUD; claims with ClaimVersion-on-edit; request submit/withdraw;
-  supersession of open requests on edit; visibility; audit events.
-- **Exit:** service tests including "edit verified claim creates new version and keeps
-  old one", "candidate cannot create ReviewDecision/Attestation".
+- **Delivered (see D34–D36):** `server/candidate/claims.ts` services (create claim,
+  edit-as-new-version, list/get own claims, list requestable organisations, submit and
+  withdraw verification requests); pure draft validation in `lib/core/claims.ts`; thin
+  Server Actions in `app/candidate/actions.ts`; minimal functional pages under
+  `/candidate/claims`; an AuditEvent in the same transaction for every mutation; 20
+  database-backed tests (`tests/db/candidate-workflow.test.ts`) plus 36 unit/structural
+  tests. No schema change and no new migration.
+- **Not in Phase 4 (deferred):** Profile editing and claim/profile visibility settings
+  (the Profile table exists; its CRUD and public-profile logic belong with Phases 11 and
+  13), supporting-document upload (D12), claim archiving UI, and the final candidate UI
+  (Phase 11).
+- **Exit:** met — edit creates a new version and keeps the old one unchanged; the
+  candidate cannot create a Credential, ReviewDecision, Attestation or any issuer
+  evidence; candidates cannot reach each other's data.
 
 ## Phase 5 — Issuer backend/workflow
 - **Goal:** Issuer-side services up to the signing boundary.
@@ -230,6 +240,9 @@ Rules that apply to every phase are in [../CLAUDE.md](../CLAUDE.md).
 | D30 | Self-signup | Always CANDIDATE. The signup form reads only email and password; no `options.data` is sent to Supabase; `syncAppUser` has no role parameter. ISSUER and ADMIN are obtainable only through a future trusted administrative path. |
 | D31 | Route protection layers | `proxy.ts` (Next.js 16) refreshes the session and optimistically redirects anonymous visitors from `/candidate`, `/issuer`, `/admin`; the real boundary is the server-side guard called in every private layout AND page (layouts alone do not gate pages). A test fails if a private page/layout lacks its guard. |
 | D32 | Issuer access | Requires `User.role = ISSUER`, an ACTIVE `OrganisationMember`, `organisationId` is derived server-side from that row, never from the request. The organisation itself must also be `ACTIVE`; a SUSPENDED or PENDING_ONBOARDING organisation denies issuer dashboard access (`/access-denied?reason=organisation_inactive`). Suspended/deactivated users are denied everywhere. |
+| D34 | Candidate input rules | Lifecycle rules enforced server-side in `validateClaimDraft`: PERMANENT needs an end date (except a never-lapsing CERTIFICATION) and cannot end in the future; CONTINUING has no end date (ending is an organisation act); EXPIRING needs an expiry date after the start and has no end date; start date cannot be in the future; real calendar dates only; a claim's category never changes. |
+| D35 | Request targeting | A request targets the claim's LATEST ClaimVersion and an ACTIVE Organisation chosen by validated id; the candidate never supplies a member or issuer key. The claim is linked to that organisation on first request and cannot be sent to a different one. A version that is APPROVED or already has a Credential cannot be requested again. Editing supersedes any open request (DOMAIN_MODEL §7.1). |
+| D36 | Candidate visibility of rejections | A candidate sees their own request statuses and rejection reason code; internal reviewer notes and source-of-truth references are never returned. Request statuses are operational labels, not verification states. |
 | D28 | Database target and identity keys | Supabase-hosted PostgreSQL via Prisma 7 (driver adapter `pg`). UUID internal keys (v7); `User.authUserId` links Supabase Auth; email is not duplicated; current ClaimVersion = highest `versionNumber`; one Credential per ClaimVersion. |
 | D22 | Positive state + anchoring | APPROVED / SIGNED / QUEUED_FOR_ANCHOR are operational; an on-chain positive verification is claimed only after the relevant anchor meets the confirmation/finality policy. |
 

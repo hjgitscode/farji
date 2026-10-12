@@ -107,6 +107,24 @@ specified in [BLOCKCHAIN_MODEL.md](BLOCKCHAIN_MODEL.md).
 
 ---
 
+## 5a. Candidate services (Phase 4)
+
+- Every candidate service (`server/candidate/claims.ts`) requires an actor with
+  `role = CANDIDATE`, checked before any database access, and uses `actor.userId`
+  (from the Phase 3 guard) as the only owner id. Server Actions read an allowlist of
+  form fields; user id, role, organisation-member and issuer-key values are never read
+  from input, and a test enforces that.
+- Another candidate's claim, version or request is indistinguishable from a missing one
+  (`NOT_FOUND`), so ids cannot be probed.
+- Candidate code cannot create or change a Credential, ReviewDecision, Attestation,
+  IssuerKey, Anchor or Revocation (structural test). Request organisations must exist and
+  be ACTIVE. Withdrawal and supersession use conditional updates so a concurrent issuer
+  decision is never overwritten.
+- Candidates see their own request statuses and rejection reason codes only; reviewer
+  notes and source-of-truth references are never selected.
+
+---
+
 ## 6. Authentication
 
 - **Supabase Auth** (decided, ROADMAP D1), integrated server-side with Next.js 16

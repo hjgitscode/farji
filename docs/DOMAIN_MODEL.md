@@ -454,6 +454,18 @@ attestation id), and must be invalidated on any new evidence. No column such as
   to the previous Credential. The previous Credential then derives `MODIFIED`
   when evaluated directly.
 
+### 7.1a Candidate input rules (Phase 4)
+A Candidate proposes a lifecycle type on each ClaimVersion; the authoritative type is
+fixed later on the Credential. Server-side validation: PERMANENT records need an end
+date (a CERTIFICATION that never lapses may omit it) that is not in the future;
+CONTINUING records have no end date, because ending a relationship is recorded by the
+Organisation (ENDED), never by the Candidate; EXPIRING records need an expiry date after
+the start date and have no end date. Dates are real calendar dates and a start date
+cannot be in the future. A Claim's category never changes. A verification request
+targets the Claim's latest ClaimVersion and an ACTIVE Organisation; a version that is
+already APPROVED or already has a Credential cannot be requested again. An edit that
+changes nothing creates no new version.
+
 ### 7.2 Issuer content rule
 Issuers approve or reject a ClaimVersion **as submitted**. They do not edit
 candidate content. A correction is requested via REJECT with a reason code

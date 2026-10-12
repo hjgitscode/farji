@@ -34,9 +34,9 @@ const slug = () => "t" + randomBytes(6).toString("hex");
 export const mkUser = (tx: Tx, role: "CANDIDATE" | "ISSUER" | "ADMIN") =>
   tx.user.create({ data: { authUserId: randomUUID(), role } });
 
-export const mkOrg = (tx: Tx) =>
+export const mkOrg = (tx: Tx, status?: "PENDING_ONBOARDING" | "ACTIVE" | "SUSPENDED") =>
   tx.organisation.create({
-    data: { orgId: bytes32(), slug: slug(), legalName: "Test Org Ltd", displayName: "Test Org", kind: "EMPLOYER" },
+    data: { orgId: bytes32(), slug: slug(), legalName: "Test Org Ltd", displayName: "Test Org", kind: "EMPLOYER", ...(status ? { status } : {}) },
   });
 
 export const mkIssuerKey = (tx: Tx, organisationId: string, walletAddress = address()) =>
