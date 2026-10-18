@@ -39,7 +39,16 @@ export const mkOrg = (tx: Tx, status?: "PENDING_ONBOARDING" | "ACTIVE" | "SUSPEN
     data: { orgId: bytes32(), slug: slug(), legalName: "Test Org Ltd", displayName: "Test Org", kind: "EMPLOYER", ...(status ? { status } : {}) },
   });
 
-export const mkIssuerKey = (tx: Tx, organisationId: string, walletAddress = address()) =>
+/** An ISSUER user with a member row of the organisation (default ACTIVE). */
+export async function mkMember(tx: Tx, organisationId: string, status: "INVITED" | "ACTIVE" | "REMOVED" = "ACTIVE") {
+  const user = await mkUser(tx, "ISSUER");
+  const member = await tx.organisationMember.create({
+    data: { userId: user.id, organisationId, status, ...(status === "ACTIVE" ? { joinedAt: new Date() } : {}) },
+  });
+  return { user, member };
+}
+
+export const mkIssuerKey =(tx: Tx, organisationId: string, walletAddress = address()) =>
   tx.issuerKey.create({ data: { organisationId, walletAddress, validFrom: new Date("2026-01-01T00:00:00Z") } });
 
 export async function mkClaimVersion(tx: Tx, candidateId: string, lifecycle: Lifecycle = "PERMANENT") {

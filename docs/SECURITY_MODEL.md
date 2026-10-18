@@ -125,6 +125,29 @@ specified in [BLOCKCHAIN_MODEL.md](BLOCKCHAIN_MODEL.md).
 
 ---
 
+## 5b. Issuer review services (Phase 5)
+
+- Every issuer service (`server/issuer/review.ts`) requires an actor with `role = ISSUER`,
+  an organisation, a member id and an ACTIVE organisation, checked before any database
+  access. Mutations re-confirm, inside the transaction, that the member is still ACTIVE in
+  that organisation and the organisation is still ACTIVE, so a stale actor cannot decide.
+- The Organisation scope is always `actor.organisationId`. Another organisation's request
+  is indistinguishable from a missing one (`NOT_FOUND`). Server Actions read an allowlist
+  of form fields (`notes`, `sourceOfTruthReference`, `rejectionReason`); no organisation,
+  member, key or candidate value is read from input, and a test enforces that.
+- A reviewer cannot decide their own claim (service check plus the database trigger).
+- Approve and reject start with a conditional open → terminal status update, so concurrent
+  decisions are serialised by the row lock and exactly one wins. `ReviewDecision` is unique
+  per request and `Credential` unique per ClaimVersion as database backstops; terminal
+  requests never change status (trigger).
+- Phase 5 code cannot create an Attestation, Anchor, BlockchainTransaction, Revocation,
+  IssuerKey, Merkle leaf or any cryptographic material, and cannot update or delete a
+  Credential (structural tests). AuditEvents carry ids only, never notes or references.
+- Reviewer `notes` and `sourceOfTruthReference` are returned only to the issuing
+  Organisation, never to Candidates.
+
+---
+
 ## 6. Authentication
 
 - **Supabase Auth** (decided, ROADMAP D1), integrated server-side with Next.js 16

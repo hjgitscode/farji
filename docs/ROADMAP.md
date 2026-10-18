@@ -17,7 +17,7 @@ Rules that apply to every phase are in [../CLAUDE.md](../CLAUDE.md).
 | 2 | Production domain/database schema | ✅ Complete (verified on Supabase) |
 | 3 | Authentication and RBAC | ✅ Complete (automated gates pass; live Supabase auth verification passed) |
 | 4 | Candidate backend/workflow | ✅ Complete (automated gates and 49/49 DB tests pass; no schema change; signed-in candidate click-through PASSED: dashboard, My records, claim create, v1→v2 edit with v1 preserved, ACTIVE organisation selectable, request submit, history, withdraw with the withdrawn request retained) |
-| 5 | Issuer backend/workflow | ⬜ Not started |
+| 5 | Issuer backend/workflow | ✅ Automated verification complete (lint, typecheck, build, db:validate, 140 unit tests and 78/78 DB tests pass; no schema change). Signed-in issuer browser smoke test DEFERRED (not failed, not passed): the development account owning the test claim was provisioned as the issuer and self-review is correctly blocked, so it needs a separate candidate account |
 | 6 | Cryptography layer | ⬜ Not started |
 | 7 | CohortProof + dynamic ProofPulse Merkle engines | ⬜ Not started |
 | 8 | Final Solidity contract | ⬜ Not started |
@@ -113,7 +113,18 @@ Rules that apply to every phase are in [../CLAUDE.md](../CLAUDE.md).
   require the Phase 6/9 evidence to complete.
 - **Must not:** fake signatures, tx hashes or anchoring; create a second PERMANENT
   Credential when a CONTINUING relationship ends.
-- **Exit:** cross-Organisation and self-approval negative tests; rejection preserves rows.
+- **Delivered (see D37–D38):** `server/issuer/review.ts` (list/get requests of the issuer's
+  own Organisation, approve, reject), pure rules in `lib/core/review.ts`, thin Server
+  Actions in `app/issuer/actions.ts`, minimal pages `/issuer`, `/issuer/requests` and
+  `/issuer/requests/[requestId]`, an AuditEvent in the same transaction for every
+  mutation, 29 database-backed tests (`tests/db/issuer-workflow.test.ts`) plus unit and
+  structural tests (`tests/issuer/`). No schema change and no new migration.
+- **Not in Phase 5 (deferred):** salts, `credentialId`, digests, signing and
+  Attestations (Phase 6); Merkle leaves (Phase 7); anchoring and chain transactions
+  (Phase 9); the end-relationship and revocation service entry points (they need the
+  Phase 6/9 evidence); issuer/admin UI polish (Phase 12); issuer provisioning (D33).
+- **Exit:** met — cross-Organisation and self-approval negative tests; rejection preserves
+  rows; double approval and a second decision or credential are impossible.
 
 ## Phase 6 — Cryptography layer
 - **Goal:** `lib/crypto` canonicalisation and EIP-712.
@@ -243,6 +254,8 @@ Rules that apply to every phase are in [../CLAUDE.md](../CLAUDE.md).
 | D34 | Candidate input rules | Lifecycle rules enforced server-side in `validateClaimDraft`: PERMANENT needs an end date (except a never-lapsing CERTIFICATION) and cannot end in the future; CONTINUING has no end date (ending is an organisation act); EXPIRING needs an expiry date after the start and has no end date; start date cannot be in the future; real calendar dates only; a claim's category never changes. |
 | D35 | Request targeting | A request targets the claim's LATEST ClaimVersion and an ACTIVE Organisation chosen by validated id; the candidate never supplies a member or issuer key. The claim is linked to that organisation on first request and cannot be sent to a different one. A version that is APPROVED or already has a Credential cannot be requested again. Editing supersedes any open request (DOMAIN_MODEL §7.1). |
 | D36 | Candidate visibility of rejections | A candidate sees their own request statuses and rejection reason code; internal reviewer notes and source-of-truth references are never returned. Request statuses are operational labels, not verification states. |
+| D37 | Credential at approval | Approval creates the Credential in `AWAITING_SIGNATURE` with `lifecycleType` copied from the approved version's proposal and, for EXPIRING, `validUntil` = start of the expiry date (UTC; the CHECK requires it for EXPIRING). No salts, `credentialId`, digests, `validFrom` or `issuedAt` are written: Phase 6 creates them at signing, so no unused secret material exists before then. Only the current ClaimVersion can be approved; a CONTINUING approval creates one CONTINUING Credential only. |
+| D38 | Decision concurrency and review limits | The first write of approve/reject is a conditional open → terminal update (row lock serialises concurrent decisions); `OTHER` requires explanatory notes; notes ≤ 2000 and source-of-truth reference ≤ 500 characters; no separate "start review" step in the MVP (SUBMITTED and IN_REVIEW are both decidable). |
 | D28 | Database target and identity keys | Supabase-hosted PostgreSQL via Prisma 7 (driver adapter `pg`). UUID internal keys (v7); `User.authUserId` links Supabase Auth; email is not duplicated; current ClaimVersion = highest `versionNumber`; one Credential per ClaimVersion. |
 | D22 | Positive state + anchoring | APPROVED / SIGNED / QUEUED_FOR_ANCHOR are operational; an on-chain positive verification is claimed only after the relevant anchor meets the confirmation/finality policy. |
 

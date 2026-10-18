@@ -471,6 +471,18 @@ Issuers approve or reject a ClaimVersion **as submitted**. They do not edit
 candidate content. A correction is requested via REJECT with a reason code
 (e.g. `DATES_MISMATCH`), and the Candidate submits a new version.
 
+### 7.2a Approval and rejection (Phase 5)
+Approve and reject act only on an open (SUBMITTED | IN_REVIEW) request for the
+reviewer's own Organisation and for the Claim's **current** ClaimVersion. APPROVE records
+a ReviewDecision and creates the single Credential for that exact ClaimVersion in
+`AWAITING_SIGNATURE`, with `lifecycleType` taken from the version's proposal (now
+authoritative and immutable) and, for EXPIRING, `validUntil` = the start of the version's
+expiry date (UTC). The salts, `credentialId`, digests, `validFrom` and `issuedAt` stay
+null until signing (Phase 6). REJECT records a ReviewDecision with a reason code and
+creates no Credential; the Candidate may later submit a fresh request. `notes` and
+`sourceOfTruthReference` are internal to the Organisation and never returned to the
+Candidate or to public views.
+
 ### 7.3 Cohort issuance (issuer-initiated)
 For CohortProof batches such as a graduating cohort, the Issuer creates
 Credentials from the Organisation's records. Each Credential's subject is bound to
