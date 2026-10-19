@@ -3,8 +3,8 @@ import type { Actor } from "@/lib/auth/authorize";
 import { createClaim, submitVerificationRequest } from "@/server/candidate/claims";
 import { acceptCredentialSignature, prepareCredentialSigning, type AcceptSigningOptions } from "@/server/issuance/signing";
 import { approveVerificationRequest } from "@/server/issuer/review";
-import { TEST_CONFIG, type TestWallet } from "../fixtures/test-wallets";
-import { mkMember, mkOrg, mkUser, type Tx } from "./helpers";
+import { PERMISSIVE_CHAIN_VIEW, TEST_CONFIG, type TestWallet } from "../fixtures/test-wallets";
+import { mkFinalizedTx, mkMember, mkOrg, mkUser, type Tx } from "./helpers";
 
 // Shared fixtures for the Phase 6/7 database tests (all run in always-rolled-back transactions).
 
@@ -43,10 +43,30 @@ export type KeyOptions = {
   validUntil?: Date | null;
   compromisedAt?: Date | null;
   operatorMemberId?: string | null;
+  /** Skip the finalised authorisation transaction (a hand-made mirror row: D46 must refuse it). */
+  withoutAuthoriseTx?: boolean;
+  /** Leave the authorisation transaction short of FINALIZED. */
+  authoriseTxStatus?: "PENDING" | "CONFIRMED";
 };
 
 /** An IssuerKey row for a wallet (the lowercase address). Defaults: open since 2026-01-01. */
-export function addKey(tx: Tx, organisationId: string, wallet: TestWallet, o: KeyOptions = {}) {
+export async function addKey(tx: Tx, organisationId: string, wallet: TestWallet, o: KeyOptions = {}) {
+  // Phase 9 (D46): an issuer wallet has authority only through a FINALIZED authorisation transaction.
+  let authoriseTransactionId: string | null = null;
+  if (!o.withoutAuthoriseTx) {
+    if (o.authoriseTxStatus) {
+      const admin = await mkUser(tx, "ADMIN");
+      const pending = await tx.blockchainTransaction.create({
+        data: { chainId: 31337, txHash: "0x" + randomUUID().replaceAll("-", "").padEnd(64, "0"), purpose: "AUTHORISE_ISSUER_KEY", targetType: "ORGANISATION", targetId: organisationId, fromAddress: "0x" + "ab".repeat(20), initiatedByUserId: admin.id, organisationId },
+      });
+      if (o.authoriseTxStatus === "CONFIRMED") {
+        await tx.blockchainTransaction.update({ where: { id: pending.id }, data: { status: "CONFIRMED", blockNumber: 1n, blockHash: "0x" + "cd".repeat(32), confirmedAt: new Date() } });
+      }
+      authoriseTransactionId = pending.id;
+    } else {
+      authoriseTransactionId = (await mkFinalizedTx(tx, "AUTHORISE_ISSUER_KEY", organisationId)).id;
+    }
+  }
   return tx.issuerKey.create({
     data: {
       organisationId,
@@ -55,6 +75,7 @@ export function addKey(tx: Tx, organisationId: string, wallet: TestWallet, o: Ke
       validUntil: o.validUntil ?? null,
       compromisedAt: o.compromisedAt ?? null,
       operatorMemberId: o.operatorMemberId ?? null,
+      authoriseTransactionId,
     },
   });
 }
@@ -84,7 +105,7 @@ export async function approvedCredential(
   return { orgId: org.id, issuer, cand, claimId, claimVersionId, requestId, credentialRowId };
 }
 
-export const signOpts = (over: Partial<AcceptSigningOptions> = {}): AcceptSigningOptions => ({ config: TEST_CONFIG, now: SIGN_NOW, ...over });
+export const signOpts = (over: Partial<AcceptSigningOptions> = {}): AcceptSigningOptions => ({ config: TEST_CONFIG, now: SIGN_NOW, chain: PERMISSIVE_CHAIN_VIEW, ...over });
 
 /** prepare -> wallet signs the typed data -> accept. The wallet is a TEST wallet (tests/fixtures). */
 export async function signCredential(
@@ -93,7 +114,7 @@ export async function signCredential(
   wallet: TestWallet,
   opts: Partial<AcceptSigningOptions> = {},
 ) {
-  const prep = await prepareCredentialSigning(tx, f.issuer, f.credentialRowId, { config: TEST_CONFIG, now: SIGN_NOW });
+  const prep = await prepareCredentialSigning(tx, f.issuer, f.credentialRowId, { config: TEST_CONFIG, now: opts.now ?? SIGN_NOW });
   const signature = await wallet.signTypedData(prep.typedData.domain, prep.typedData.types, prep.typedData.message);
   const accepted = await acceptCredentialSignature(
     tx,

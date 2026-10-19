@@ -93,5 +93,20 @@ export const STATUS_CHANGE_TYPES: TypesRecord = {
   ],
 };
 
+/**
+ * Proof of possession of an issuer wallet (ROADMAP Phase 9, decision J): the connected wallet signs
+ * this message to be bound as the operator of its IssuerKey. It binds the organisation, the member,
+ * the wallet and a short-lived time + nonce, under the same FARJI domain (chain + registry).
+ */
+export const WALLET_BINDING_TYPES: TypesRecord = {
+  FarjiWalletBinding: [
+    { name: "orgId", type: "bytes32" },
+    { name: "memberId", type: "bytes16" },
+    { name: "wallet", type: "address" },
+    { name: "issuedAt", type: "uint64" },
+    { name: "nonce", type: "bytes32" },
+  ],
+};
+
 /** The V1 content schema id: the type hash of `CredentialContent` (one universal V1 struct, D40). */
 export const SCHEMA_ID = keccakUtf8(TypedDataEncoder.from(CONTENT_TYPES).encodeType("CredentialContent"));

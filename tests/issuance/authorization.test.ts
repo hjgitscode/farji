@@ -82,8 +82,15 @@ describe("structural guarantees of Phases 6 and 7", () => {
 
   it("nothing creates a Revocation, BlockchainTransaction, Anchor or IssuerKey (ENDED is not revocation)", () => {
     for (const f of serverFiles) {
-      expect(source(f), path.relative(root, f)).not.toMatch(/\.(revocation|blockchainTransaction|anchor|issuerKey|user|organisation|claim|claimVersion|verificationRequest|reviewDecision)\.(create|createMany|update|updateMany|upsert|delete|deleteMany)\b/);
+      expect(source(f), path.relative(root, f)).not.toMatch(/\.(revocation|blockchainTransaction|anchor|user|organisation|claim|claimVersion|verificationRequest|reviewDecision)\.(create|createMany|update|updateMany|upsert|delete|deleteMany)\b/);
+      expect(source(f), path.relative(root, f)).not.toMatch(/\.issuerKey\.(create|createMany|upsert|delete|deleteMany)\b/);
     }
+  });
+
+  it("the only IssuerKey change outside the finalised-evidence mirror is binding an operator (wallet proof of possession)", () => {
+    const updaters = serverFiles.filter((f) => /\.issuerKey\.(update|updateMany)\(/.test(source(f))).map((f) => path.basename(f));
+    expect(updaters).toEqual(["wallet-binding.ts"]);
+    expect(source(path.join(root, "server", "issuance", "wallet-binding.ts"))).toMatch(/data: \{ operatorMemberId: scope\.memberId \}/);
   });
 
   it("nothing is ever deleted from the evidence and Merkle tables", () => {

@@ -20,8 +20,8 @@ Rules that apply to every phase are in [../CLAUDE.md](../CLAUDE.md).
 | 5 | Issuer backend/workflow | ✅ Automated verification complete (lint, typecheck, build, db:validate, 140 unit tests and 78/78 DB tests pass; no schema change). Signed-in issuer browser smoke test DEFERRED (not failed, not passed): the development account owning the test claim was provisioned as the issuer and self-review is correctly blocked, so it needs a separate candidate account |
 | 6 | Cryptography layer | ✅ Complete (automated verification only: unit/golden-vector tests and rollback-only DB tests pass; no schema change; wallet/browser signing UI deferred to Phase 9) |
 | 7 | CohortProof + dynamic ProofPulse Merkle engines | ✅ Complete (automated verification only; no schema change; anchoring deferred to Phases 8–9) |
-| 8 | Final Solidity contract | ⬜ Not started |
-| 9 | Real application-to-blockchain integration | ⬜ Not started |
+| 8 | Final Solidity contract | ✅ Complete (56 contract tests incl. Solidity ↔ TypeScript golden vectors; Hardhat 2.26.5; Slither not run — Phase 16) |
+| 9 | Real application-to-blockchain integration | ✅ Complete (automated: unit, rollback-only DB and real-local-node integration tests pass; additive migration `txNonce`; no public-testnet deployment yet — Phase 15; no browser-wallet click-through yet) |
 | 10 | Verification/state engine | ⬜ Not started |
 | 11 | Candidate professional UI | ⬜ Not started |
 | 12 | Issuer/admin UI | ⬜ Not started |
@@ -179,6 +179,14 @@ Rules that apply to every phase are in [../CLAUDE.md](../CLAUDE.md).
   per (Organisation, attestation type) with exact `chainRoot` encoding,
   Organisation-bound revocation, events, views; deploy scripts for local node.
 - **Exit:** BLOCKCHAIN_MODEL §14 tests pass; static analysis clean or findings documented.
+- **Delivered (see D47–D52):** `contracts/FarjiRegistry.sol` (non-upgradeable, OpenZeppelin
+  `AccessControlDefaultAdminRules`), `contracts/harness/VectorHarness.sol` (test-only), 56 contract tests
+  (`contracts/test/FarjiRegistry.test.ts`), Hardhat 2.26.5 config, deploy/ABI scripts. The Solidity
+  `chainRoot`, `credentialId`, content digest, cohort leaves/proofs and ProofPulse vectors reproduce the
+  committed TypeScript golden vectors exactly. Credential ownership is cryptographic (D47); admin and
+  issuer authority never overlap; wallets are never re-authorised; `isEvidenceKeyValid` (and
+  `wasKeyValidForEvidence` in TypeScript) is the compromise-at-anchor rule for Phase 10.
+- **Not done:** Slither/static analysis (not installed; documented as a Phase 16 task); gas optimisation.
 
 ## Phase 9 — Real application-to-blockchain integration
 - **Goal:** Real browser wallet → contract → server confirmation loop on a local
@@ -191,6 +199,16 @@ Rules that apply to every phase are in [../CLAUDE.md](../CLAUDE.md).
 - **Must not:** introduce mock blockchain state or claim confirmation before it occurs.
 - **Exit:** end-to-end tests (approve → sign → anchor → revoke; insert → end → epoch)
   against a local Hardhat node.
+- **Delivered (see D47–D52):** `lib/blockchain` (ABI, calldata, logs), `server/chain/*` (config, RPC and
+  reader, action resolver, build/record, sync state machine with `txNonce` replacement detection and reorg
+  handling, finalised-evidence mirror, admin rescan, queries, scheduled-sync route), wallet proof of
+  possession (`server/issuance/wallet-binding.ts`), D46 enforcement in signing, additive migration
+  `20261019120000_chain_tx_nonce`, minimal admin pages (organisations, wallets, transactions) and issuer
+  pages (credentials, cohort, current relationships, transactions, wallet) with browser-wallet components.
+  Tests: unit (fake RPC kept to the state machine/mirror), rollback-only database tests and a real
+  local Hardhat node suite (`npm run test:chain`).
+- **Not done:** a live MetaMask click-through (no browser wallet in the automated environment); public
+  Sepolia deployment (Phase 15); RPC provider selection (D18); Vercel cron wiring (Phase 14).
 
 ## Phase 10 — Verification/state engine
 - **Goal:** `deriveCredentialState` / `deriveClaimState` in `lib/verification` and the
@@ -291,6 +309,12 @@ Rules that apply to every phase are in [../CLAUDE.md](../CLAUDE.md).
 | D44 | What can be signed | Only the Claim's **current** ClaimVersion can be prepared or signed, and never by the owner of the claim. If the candidate edits after approval, the old Credential stays unsigned and the new version needs its own request. |
 | D45 | Cohort tree library | CohortProof uses the audited `@openzeppelin/merkle-tree` (pinned exactly, `1.0.8`): leaves sorted by leaf hash, sorted-pair parents, complete-binary-tree odd rule. `CohortLeaf.position` is the insertion sequence; tree order is by hash. |
 | D46 | Issuer-key trust before Phase 9 | Until Phase 9, signature acceptance trusts the `IssuerKey` mirror rows (test fixtures; manual rows in development only). From Phase 9 it must also require an observed authorisation transaction (`authoriseTransactionId`); the chain remains authoritative for key history. |
+| D47 | Credential ownership on-chain | **No per-credential on-chain registry** and no `revoke(credentialId)`. `revokeCredential(orgId, credentialSalt, reason)` rebuilds `credentialId = keccak256(abi.encode(CREDENTIAL_ID_TAG, orgId, credentialSalt))` from the caller's own `orgId` (an open issuer wallet of that Organisation) and stores the Revocation with its `orgId`; another Organisation can only reach its own namespace. The app additionally permits revocation calldata only for a known Credential of the issuer's Organisation. |
+| D48 | Tooling | **Hardhat 2.26.5 (CommonJS)** with `@nomicfoundation/hardhat-ethers 3.1.0`; the root package stays CommonJS (no `"type": "module"`), Hardhat TypeScript runs through `contracts/tsconfig.json`. Hardhat 3 / ESM rejected to avoid destabilising Next.js/Prisma/Vitest. OpenZeppelin Contracts pinned `5.4.0`. Slither not run (Phase 16). |
+| D49 | Transaction replacement detection | Additive `BlockchainTransaction.txNonce BIGINT NULL` (immutable): the sender's nonce of the transaction the server itself retrieved. A PENDING row whose hash is unknown and whose nonce is consumed at the settled height is DROPPED (replaced); never assumed from timing alone (24 h give-up only for a transaction that no node knows and whose nonce is unused). |
+| D50 | Finality and the mirror | CONFIRMED = mined (status 1), tracking only. FINALIZED = block at/under the Ethereum `finalized` tag (Sepolia/mainnet) or `depth:N` (local development `depth:0`, integration tests `depth:2`). Organisation status, IssuerKey, Anchor, Revocation and Credential ANCHORED are written **only** at FINALIZED, in the same database transaction. A reorg before finality returns the transaction to PENDING; nothing needs undoing. |
+| D51 | D7 `maxAnchorDelay` | **30 days** (decided; see BLOCKCHAIN_MODEL §8.4a). Not enforceable by the contract; the app warns after 21 days and refuses to build an anchor in which every attestation is older than 30 days; Phase 10 derives PENDING/INVALID_PROOF. |
+| D52 | Sync, governance and suspension | Recorded-transaction-driven sync plus an admin range rescan (no cursor table; only replacements of recorded transactions are adopted). Admin and issuer authority never overlap on-chain. The app's issuer access follows D32, so while an Organisation is SUSPENDED the web app blocks anchoring and revocation even though the contract still permits revocation. A wallet proof of possession binds `operatorMemberId`. Pages are minimal (polish: Phase 12). |
 | D28 | Database target and identity keys | Supabase-hosted PostgreSQL via Prisma 7 (driver adapter `pg`). UUID internal keys (v7); `User.authUserId` links Supabase Auth; email is not duplicated; current ClaimVersion = highest `versionNumber`; one Credential per ClaimVersion. |
 | D22 | Positive state + anchoring | APPROVED / SIGNED / QUEUED_FOR_ANCHOR are operational; an on-chain positive verification is claimed only after the relevant anchor meets the confirmation/finality policy. |
 
@@ -299,11 +323,9 @@ Rules that apply to every phase are in [../CLAUDE.md](../CLAUDE.md).
 | # | Decision | Needed by | Proposed default |
 |---|---|---|---|
 | D33 | Trusted issuer/admin provisioning path, MFA for Issuer/Admin, step-up re-authentication, role-change audit (deferred from Phase 3) | Phase 12 (Admin UI) | Admin-only invitation flow using a server-only Supabase admin credential; Supabase MFA |
-| D7 | `maxAnchorDelay` (signature-to-anchor bound) | Phase 8 | e.g. 30 days, configurable |
 | D11 | Issuer-initiated cohort issuance + claim invitations in v1 scope? | Phase 5 | In scope, mechanism TBD |
 | D12 | Supporting document uploads (object storage) in v1? | Phase 4 | Optional |
 | D15 | Data retention / erasure (crypto-shredding) policy; applicable law (DPDP, GDPR) | Phase 14 | Crypto-shredding |
 | D16 | Organisation onboarding / legitimacy (KYB) process | Phase 12 | Manual Admin review |
-| D17 | Exact confirmation/finality policy (`finalized` vs. N confirmations) | Phase 9 | `finalized` |
 | D18 | RPC provider | Phase 9 | — |
 | D19 | Client-side independent verification on the public page vs. proof bundle only | Phase 13 | Proof bundle; client-side optional |

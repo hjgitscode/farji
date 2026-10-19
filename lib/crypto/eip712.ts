@@ -7,6 +7,7 @@ import {
   EIP712_VERSION,
   SCHEMA_ID,
   STATUS_CHANGE_TYPES,
+  WALLET_BINDING_TYPES,
   type TypesRecord,
 } from "./constants";
 import { isBytes32, isLowerAddress } from "./encoding";
@@ -131,6 +132,17 @@ export function buildStatusChangeTypedData(domain: Eip712Domain, p: StatusChange
   if (!Number.isInteger(p.statusSeq) || p.statusSeq < 1 || p.statusSeq > 0xffffffff) throw new Error("statusSeq must be a uint32 >= 1");
   if (![0, 1].includes(p.newStatus)) throw new Error("newStatus must be 0 or 1");
   return { domain, types: STATUS_CHANGE_TYPES, primaryType: "StatusChangeAttestation", message: { ...p } };
+}
+
+export type WalletBindingParams = { orgId: string; memberId: string; wallet: string; issuedAt: bigint; nonce: string };
+
+export function buildWalletBindingTypedData(domain: Eip712Domain, p: WalletBindingParams): TypedData<WalletBindingParams> {
+  need32("orgId", p.orgId);
+  need32("nonce", p.nonce);
+  needU64("issuedAt", p.issuedAt);
+  if (!/^0x[0-9a-f]{32}$/.test(p.memberId)) throw new Error("memberId must be a lowercase 0x bytes16");
+  if (!isLowerAddress(p.wallet)) throw new Error("wallet must be a lowercase 0x address");
+  return { domain, types: WALLET_BINDING_TYPES, primaryType: "FarjiWalletBinding", message: { ...p } };
 }
 
 /** EIP-712 digest: keccak256(0x1901 ‖ domainSeparator ‖ hashStruct(message)). */

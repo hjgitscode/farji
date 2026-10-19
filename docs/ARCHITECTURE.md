@@ -233,6 +233,11 @@ Admin's browser wallet → events synced → key history visible in Admin and Is
 - Event sync runs as scheduled polling (Vercel Cron or equivalent), idempotent by
   (block, logIndex).
 - Local development and CI use a local Hardhat node; Sepolia from Phase 15.
+- **As built (Phase 9):** `lib/blockchain` (ABI + calldata/log codecs), `server/chain` (config, read-only
+  RPC and chain reader, action resolver, build/record, sync state machine, finalised-evidence mirror,
+  queries), `server/issuance/wallet-binding.ts`, minimal wallet UI under `/admin/*` and `/issuer/*`
+  (`components/wallet`), `POST /api/chain/sync`. Hardhat 2.26 (CommonJS) lives beside the app
+  (`hardhat.config.ts`, `contracts/`, `scripts/`).
 - No mock chain state once Phase 9 exists.
 
 ---

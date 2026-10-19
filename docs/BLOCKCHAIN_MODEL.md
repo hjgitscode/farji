@@ -82,7 +82,12 @@ key must include `treeId`.
 
 ---
 
-## 5. Storage model (sketch — finalised in Phase 8)
+## 5. Storage model (sketch — implemented in `contracts/FarjiRegistry.sol`, Phase 8)
+
+The deployed contract adds, beyond this sketch: `chainRootAt[orgId][type][epoch]` (every historical
+`chainRoot` of a chain, so no anchor is ever unreachable), `lastPulseRoot[orgId]` (to allow only an
+unchanged root at an equal `rootSeq`), `anchoringPaused`, and `getAnchor/getChainHead/getIssuerKey/
+getRevocation` views. See §15 for the final function list.
 
 ```solidity
 enum AttestationType { COHORT, PROOF_PULSE }
@@ -151,7 +156,18 @@ Admins have **no** function to revoke a Credential or anchor a root.
 | `revokeCredential(orgId, credentialSalt, reasonCode)` | Computes `credentialId` from `orgId` and salt — so an issuer can only ever revoke IDs belonging to its own Organisation; not already revoked |
 
 Revocation is permitted even if the Organisation is SUSPENDED, provided the
-caller's key is open and not compromised.
+caller's key is open and not compromised. (The FARJI web app is stricter: an issuer of a SUSPENDED
+Organisation has no issuer access at all — ROADMAP D32 — so revocation by the app resumes when the
+Organisation is reactivated; the contract itself never blocks it.)
+
+**Ownership of a credential (ROADMAP D47).** There is no per-credential registration on-chain
+and no `revoke(credentialId)` entry point. The contract rebuilds
+`credentialId = keccak256(abi.encode(CREDENTIAL_ID_TAG, orgId, credentialSalt))` from the CALLER'S
+`orgId` (which must be an open issuer wallet of that Organisation) and stores the Revocation with its
+`orgId`. Organisation B can therefore only produce ids in B's own namespace; finding a salt that makes
+B's namespace collide with A's id is a keccak256 preimage attack. Revoking an id in one's own namespace
+that was never issued is harmless; the application additionally permits revocation calldata only for a
+known FARJI Credential belonging to the issuer's Organisation.
 
 ### 6.3 Views
 - `isIssuerAuthorisedAt(orgId, wallet, timestamp) → bool`
@@ -231,6 +247,14 @@ the tree to anchor.
   `expectedPreviousChainRoot`; the second reverts cleanly and is retried against the
   new head. The UI must handle this retry; it never corrupts evidence. Within the
   PROOF_PULSE chain this is rare (one tree per Organisation, periodic epochs).
+
+### 8.4a `maxAnchorDelay` (ROADMAP D7, decided: 30 days)
+The contract cannot enforce it (it never sees `issuedAt`). Policy: a signed attestation is valid
+evidence only if its containing root is first anchored within 30 days of its `issuedAt`
+(`issuedAt <= anchoredAt <= issuedAt + 30 days`); Phase 10 derives PENDING before a qualifying anchor
+and INVALID_PROOF for evidence anchored beyond the window. The Phase 9 application warns after 21
+days and does not BUILD an anchor in which every attestation is already older than 30 days (a batch
+with at least one fresh leaf is still anchorable, with a warning about the stale ones).
 
 ### 8.5 Submission
 Anchors are submitted by the Issuer's own browser wallet. No relayer in the MVP.
@@ -383,3 +407,75 @@ Every state change emits an event: `OrganisationRegistered`,
 - Golden Merkle vectors (`lib/merkle`) and `chainRoot` / `credentialId` vectors
   (`lib/crypto`) verify identically on-chain.
 - Gas report for anchor and revoke functions.
+
+---
+
+## 15. Implementation notes (Phases 8–9, as built)
+
+### 15.1 Contract (`contracts/FarjiRegistry.sol`, Solidity 0.8.28)
+Non-upgradeable (no proxy, no `delegatecall`, no `selfdestruct`), built on OpenZeppelin
+`AccessControlDefaultAdminRules` (pinned `5.4.0`). `constructor(adminDelay, defaultAdmin,
+platformAdmin)`: `DEFAULT_ADMIN_ROLE` only grants/revokes `PLATFORM_ADMIN_ROLE`.
+
+| Function | Caller | Notes |
+|---|---|---|
+| `registerOrganisation(orgId, metadataHash)` | platform admin | `metadataHash` = keccak256(slug); no personal data |
+| `setOrganisationStatus(orgId, ACTIVE\|SUSPENDED)` | platform admin | suspension blocks NEW anchors/authorisations only |
+| `authoriseIssuerWallet(orgId, wallet)` | platform admin | wallet must be **never seen before**, not an admin, org ACTIVE, not paused |
+| `retireIssuerWallet(wallet)` | platform admin | sets `validUntil` once; never blocked by pause |
+| `rotateIssuerWallet(orgId, old, new)` | platform admin | atomic retire + authorise, `new` must be fresh |
+| `markIssuerWalletCompromised(wallet, at)` | platform admin | `validFrom <= at <= now`, once; closes an open key; never blocked |
+| `pauseAnchoring()` / `unpauseAnchoring()` | platform admin | blocks anchors and authorisations only |
+| `anchorCohortRoot(orgId, batchRoot, leafCount, schemaId, expectedPrev)` | open issuer wallet of `orgId` | |
+| `anchorProofPulseEpoch(orgId, batchRoot, rootSeq, leafCount, expectedPrev)` | open issuer wallet of `orgId` | `rootSeq` monotonic; equal `rootSeq` only with the same root |
+| `revokeCredential(orgId, credentialSalt, reasonCode 1..4)` | open issuer wallet of `orgId` | id rebuilt from the caller's `orgId` (D47); allowed while suspended/paused |
+
+Role separation: an issuer wallet can never hold an admin role (`_grantRole` is overridden) and an
+admin wallet can never be authorised as an issuer wallet, so an admin can never anchor or revoke.
+Views: `isIssuerAuthorisedAt`, `isEvidenceKeyValid(orgId, wallet, issuedAt, anchoredAt)` (authorised at
+`issuedAt` AND `anchoredAt < compromisedAt` when compromised — the Phase 10 compromise-at-anchor
+helper; TypeScript twin: `wasKeyValidForEvidence` in `lib/crypto/keys.ts`), `getIssuerKey`, `getAnchor`, `getChainHead`, `chainRootAt`, `getRevocation`,
+`computeCredentialId`, `computeChainRoot` (pure, reproduces `lib/crypto/chain-root.ts` byte for byte),
+`verifyCohortInclusion`. `contracts/harness/VectorHarness.sol` is test-only and proves the committed
+golden vectors (credentialId, subjectCommitment, contentDigest, schemaId, cohort leaves, ProofPulse
+zero hashes/leaves/roots) match in Solidity.
+
+### 15.2 Tooling (ROADMAP D48)
+Hardhat **2.26.5** (CommonJS) with `@nomicfoundation/hardhat-ethers 3.1.0` and ethers 6; the root
+package stays CommonJS (no `"type": "module"`). `hardhat.config.ts` is loaded with
+`--tsconfig contracts/tsconfig.json`. Scripts: `compile`, `test:contracts`, `chain:node`,
+`chain:deploy:local`, `chain:abi` (exports `lib/blockchain/farji-registry.abi.json`), `chain:sync`,
+`test:chain`. Static analysis (Slither) was not available and is a Phase 16 task.
+
+### 15.3 Application ↔ chain (as built)
+- **Server-built transactions** (`server/chain/actions.ts` + `transactions.ts`): one resolver turns
+  (purpose, target, free parameters) into the exact expected calldata from database state. The browser
+  receives `{to, data, chainId}`; its wallet broadcasts it; it reports ONLY the hash.
+- **Recording**: the server fetches the transaction from its own RPC and checks chain id, registry
+  address, decoded function, exact calldata (the contract-enforced `expectedPreviousChainRoot` is the
+  only value taken from it), and sender authority (platform-admin role on-chain; or a mirrored issuer
+  wallet of the actor's own organisation whose authorisation is FINALIZED and, if bound, whose operator
+  is the actor). Then it inserts a PENDING `BlockchainTransaction` with the sender's `txNonce`.
+- **State machine** (`server/chain/sync.ts`): PENDING → CONFIRMED (mined, one confirmation, tracking only) →
+  FINALIZED; or FAILED (reverted) / DROPPED (replaced: unknown hash and nonce consumed at the settled
+  height; or unknown for 24 h). CONFIRMED → PENDING on reorg (receipt gone or a different block hash).
+- **Finality** (D17, decided): Sepolia/mainnet `finalized` block tag; local development `depth:0`; local
+  integration tests `depth:2` (`FARJI_FINALITY`).
+- **Finalised-evidence mirror** (`server/chain/mirror.ts`), in the SAME database transaction as the
+  FINALIZED transition and never earlier: Organisation status, IssuerKey (with `authoriseTransactionId`),
+  Anchor, CohortBatch ANCHORED + its Credentials ANCHORED (matching SEALED batch), PROOF_PULSE epochs
+  anchoring the Credentials whose leaf was inserted at or before the anchored `rootSeq`, and Revocation
+  (only for a known Credential of that organisation). Events are decoded only from the configured
+  registry address; unmatched chain facts go to the audit trail and transition nothing; a `chainRoot`
+  that disagrees with the TypeScript formula is refused.
+- **Idempotency / duplicates**: `(chainId, txHash)` unique; conditional status updates; mirror writes
+  are idempotent and backstopped by unique `Anchor.chainRoot`, `Anchor.transactionId`,
+  `Revocation.credentialRowId`, `IssuerKey.walletAddress`.
+- **Rescan**: an admin range rescan adopts only a transaction that replaces a recorded PENDING/DROPPED
+  one (same sender and nonce); everything else is audited as unattributed.
+- **D46**: signature acceptance requires an IssuerKey whose authorisation transaction is FINALIZED and
+  the chain's own `isIssuerAuthorisedAt(orgId, wallet, issuedAt)`.
+- **Wallet proof of possession** (decision J): the wallet signs an EIP-712 `FarjiWalletBinding`
+  (`orgId`, `memberId`, `wallet`, `issuedAt`, `nonce`); the server recovers the signer and binds
+  `IssuerKey.operatorMemberId` once.
+- **Scheduled sync**: `POST /api/chain/sync` guarded by `FARJI_SYNC_TOKEN`.

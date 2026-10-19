@@ -29,3 +29,8 @@ Thumbs.db
 
 # generated Prisma client
 /lib/database/generated/
+
+# Hardhat build output (the ABI lives in lib/blockchain)
+/artifacts
+/cache
+/deployments

@@ -61,6 +61,29 @@ export async function mkMember(tx: Tx, organisationId: string, status: "INVITED"
   return { user, member };
 }
 
+/**
+ * A FINALIZED chain transaction row for DATABASE tests that need "an issuer wallet whose authorisation
+ * was finalised" without a chain (the Phase 2/6/7 style fixtures). Real chain behaviour is covered by
+ * tests/chain-int against a local Hardhat node.
+ */
+export async function mkFinalizedTx(
+  tx: Tx,
+  purpose: "REGISTER_ORGANISATION" | "SET_ORGANISATION_STATUS" | "AUTHORISE_ISSUER_KEY" | "RETIRE_ISSUER_KEY" | "MARK_ISSUER_KEY_COMPROMISED" | "ANCHOR_COHORT" | "ANCHOR_PROOF_PULSE" | "REVOKE_CREDENTIAL",
+  organisationId: string,
+  targetType: "ORGANISATION" | "ISSUER_KEY" | "COHORT_BATCH" | "PROOF_PULSE_TREE" | "CREDENTIAL" = "ORGANISATION",
+  targetId: string = organisationId,
+) {
+  const admin = await mkUser(tx, "ADMIN");
+  const row = await tx.blockchainTransaction.create({
+    data: { chainId: 31337, txHash: bytes32(), purpose, targetType, targetId, fromAddress: address(), initiatedByUserId: admin.id, organisationId },
+  });
+  await tx.blockchainTransaction.update({
+    where: { id: row.id },
+    data: { status: "CONFIRMED", blockNumber: 1n, blockHash: bytes32(), confirmedAt: new Date() },
+  });
+  return tx.blockchainTransaction.update({ where: { id: row.id }, data: { status: "FINALIZED", finalizedAt: new Date() } });
+}
+
 export const mkIssuerKey =(tx: Tx, organisationId: string, walletAddress = address()) =>
   tx.issuerKey.create({ data: { organisationId, walletAddress, validFrom: new Date("2026-01-01T00:00:00Z") } });
 

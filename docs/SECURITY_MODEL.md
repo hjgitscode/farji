@@ -183,6 +183,39 @@ specified in [BLOCKCHAIN_MODEL.md](BLOCKCHAIN_MODEL.md).
 
 ---
 
+## 5d. Application ↔ chain (Phases 8–9)
+
+- **Trust boundary.** The browser wallet signs EIP-712 attestations and sends transactions; it supplies
+  only the connected account, a signature and a transaction hash (plus `issuedAt`/`nonce` echoed from
+  a prepare step). Organisation, credential, salt, digest, Merkle root, leaf count, root sequence,
+  schema id and owner always come from server/database state; Server Actions' parameter lists are
+  tested to carry none of them. The server never signs, never sends a transaction and never holds a
+  private key (structural tests over `lib/`, `server/`, `app/`, `components/`).
+- **Reported transactions are re-derived, not trusted.** The server fetches the transaction from its own
+  RPC and requires: the configured chain id and registry address, a registry function decoded from the
+  calldata, calldata byte-equal to what the resolver builds from the database (only the chain head the
+  contract itself enforces is taken from the transaction), and a sender that is a platform-admin
+  wallet on-chain (admin purposes) or a mirrored, FINALIZED-authorised issuer wallet of the actor's
+  own organisation (issuer purposes; bound operator must be the actor).
+- **Positive evidence only at finality.** Anchor, Revocation, IssuerKey, Organisation status and
+  Credential ANCHORED are written by one module (`server/chain/mirror.ts`) inside the transaction that
+  moves CONFIRMED → FINALIZED; a reorg before then returns the transaction to PENDING with nothing to
+  undo. Events come only from the configured registry address; a `chainRoot` that disagrees with the
+  TypeScript formula is refused; unmatched chain facts are audited and transition nothing.
+- **Revocation ownership.** `credentialId` is rebuilt on-chain from the caller's own `orgId`; there is
+  no revoke-by-id entry point; the app additionally refuses revocation calldata for any Credential that
+  is not a known Credential of the issuer's organisation. The mirror will only mark such a Credential.
+- **Role separation on-chain.** Admin wallets can never be issuer wallets (and vice versa), so an admin
+  can never anchor, sign or revoke; a retired or compromised wallet is never re-authorised.
+- **Replacement/DROPPED detection** uses the sender's recorded nonce, so a slow transaction is never
+  mislabelled and a replaced one is never left PENDING forever; the scheduled sync endpoint is guarded
+  by a constant-time shared token and refuses everything when none is configured.
+- **Known limits.** Static analysis of the contract (Slither) is a Phase 16 task. Before the public
+  deployment the RPC provider (D18) is a trust assumption of the server's observations. Revocation
+  while an Organisation is suspended works on-chain but is blocked in the web app (D32).
+
+---
+
 ## 6. Authentication
 
 - **Supabase Auth** (decided, ROADMAP D1), integrated server-side with Next.js 16

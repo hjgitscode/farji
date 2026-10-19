@@ -17,3 +17,12 @@ export type TestWallet = Pick<Wallet, "address" | "signTypedData">;
 
 export const deterministicWallet = () => new Wallet(HARDHAT_ACCOUNT_0_KEY);
 export const freshWallet = () => Wallet.createRandom();
+
+/**
+ * A chain-view stand-in for the pre-Phase-9 DATABASE tests only (tests/db/issuance, cohort, pulse): they
+ * exercise signing, Merkle and database rules and are not about the chain read. It answers "authorised"
+ * for everything. Every chain-facing behaviour is tested against a REAL local Hardhat node in
+ * tests/chain-int, and D46 itself (a denying chain view) is tested in tests/db/chain-signing.test.ts.
+ * It must never be used outside tests/.
+ */
+export const PERMISSIVE_CHAIN_VIEW = { isIssuerAuthorisedAt: async () => true };

@@ -7,6 +7,7 @@ export default defineConfig({
     environment: "node",
     include: ["tests/**/*.test.ts"],
     // Database tests need a real PostgreSQL; run them with `npm run test:db`.
-    exclude: ["tests/db/**", "node_modules/**"],
+    // Chain integration tests need a local Hardhat node: run them with `npm run test:chain`.
+    exclude: ["tests/db/**", "tests/chain-int/**", "node_modules/**"],
   },
 });

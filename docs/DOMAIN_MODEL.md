@@ -123,6 +123,11 @@ in an attestation chain.
   and whether `compromisedAt` precedes it.
 - The chain is authoritative for key history; this table is a mirror that must never
   be used to *grant* validity the chain does not show.
+- **Phase 9 (ROADMAP D46):** a row has authority only through `authoriseTransactionId` pointing at a
+  FINALIZED BlockchainTransaction; rows are created by the mirror from the `IssuerWalletAuthorised`
+  event, never by hand. Signature acceptance additionally asks the chain
+  (`isIssuerAuthorisedAt(orgId, wallet, issuedAt)`). `operatorMemberId` is bound once, only through a
+  wallet proof of possession (a signed EIP-712 `FarjiWalletBinding`).
 
 ### 3.6 Claim
 - `candidateId`, `category` (EXPERIENCE | EDUCATION | CERTIFICATION | MEMBERSHIP),
@@ -245,6 +250,9 @@ in an attestation chain.
   PROOF_PULSE_TREE | CREDENTIAL), `targetId` (the UUID of that row; deliberately not a
   foreign key because it is polymorphic) and `targetSequence` (nullable; e.g. the
   `rootSeq` or chain epoch being anchored). No separate "anchor intent" table.
+- `txNonce` (nullable, immutable): the sender's account nonce of the transaction the server itself
+  retrieved when it was reported; it lets chain sync tell a **replaced** transaction (unknown hash,
+  nonce consumed at the settled height) from one that is merely slow.
 - Born PENDING with no block data. Legal transitions: PENDING → CONFIRMED | FAILED |
   DROPPED; CONFIRMED → FINALIZED | PENDING (reorg) | DROPPED. FINALIZED, FAILED and
   DROPPED are terminal; PENDING cannot jump to FINALIZED. CONFIRMED/FINALIZED require
@@ -328,6 +336,10 @@ AWAITING_SIGNATURE ──► SIGNED ──► QUEUED_FOR_ANCHOR ──► ANCHOR
 - ANCHORED: the containing root is anchored on-chain and meets the
   confirmation/finality policy.
 - Revocation is not a pipeline status; it is evidence (Revocation record + chain).
+- **Phase 9:** the move to ANCHORED is made **only** by the finalised-evidence mirror, only from
+  QUEUED_FOR_ANCHOR, and only when the BlockchainTransaction that carried the covering anchor is
+  FINALIZED under the configured policy (Ethereum `finalized`, or `depth:N` locally). A CONFIRMED
+  (merely mined) transaction produces no Anchor row and no ANCHORED credential.
 
 Request APPROVED and pipeline AWAITING_SIGNATURE / SIGNED / QUEUED_FOR_ANCHOR are
 **operational** statuses. They are shown to Candidates and Issuers as progress, but

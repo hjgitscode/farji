@@ -627,6 +627,7 @@ model BlockchainTransaction {
   targetSequence    Int? // e.g. ProofPulse rootSeq or chain epoch being anchored
   status            TxStatus     @default(PENDING)
   fromAddress       String       @db.Char(42)
+  txNonce           BigInt? // sender account nonce of the reported tx; detects replacement/drop (Phase 9)
   initiatedByUserId String       @db.Uuid
   organisationId    String?      @db.Uuid
   blockNumber       BigInt?

@@ -4,6 +4,7 @@ import {
   isKeyAuthorisedAt,
   isKeyCompromisedAt,
   wasKeyValidForAttestation,
+  wasKeyValidForEvidence,
   type IssuerKeyHistory,
 } from "@/lib/crypto/keys";
 
@@ -80,5 +81,22 @@ describe("checkKeyForNewAttestation", () => {
 
   it("refuses a backdated issuedAt before the key existed", () => {
     expect(checkKeyForNewAttestation(open, d("2025-01-01T00:00:00Z"), d("2026-03-01T00:00:00Z"))).toBe("NOT_AUTHORISED_AT_ISSUANCE");
+  });
+});
+
+describe("wasKeyValidForEvidence (compromise judged at ANCHOR time, mirrors the contract)", () => {
+  const compromised: IssuerKeyHistory = { validFrom: FROM, validUntil: UNTIL, compromisedAt: d("2026-04-01T00:00:00Z") };
+  const issuedAt = d("2026-03-01T00:00:00Z");
+
+  it("evidence anchored before the compromise stays valid, at or after it does not - however the issuedAt was chosen", () => {
+    expect(wasKeyValidForEvidence(compromised, issuedAt, d("2026-03-31T23:59:59Z"))).toBe(true);
+    expect(wasKeyValidForEvidence(compromised, issuedAt, d("2026-04-01T00:00:00Z"))).toBe(false);
+    expect(wasKeyValidForEvidence(compromised, issuedAt, d("2026-05-01T00:00:00Z"))).toBe(false);
+  });
+
+  it("a later retirement never invalidates evidence; a key not yet authorised at issuedAt is invalid", () => {
+    expect(wasKeyValidForEvidence(retired, issuedAt, d("2027-01-01T00:00:00Z"))).toBe(true);
+    expect(wasKeyValidForEvidence(open, d("2025-01-01T00:00:00Z"), d("2026-02-01T00:00:00Z"))).toBe(false);
+    expect(wasKeyValidForEvidence(retired, d("2026-07-01T00:00:00Z"), d("2026-07-02T00:00:00Z"))).toBe(false);
   });
 });

@@ -29,6 +29,7 @@ import {
   type SignatureInput,
   type Tx,
 } from "./common";
+import { getChain } from "@/server/chain/context";
 import { getEip712Config } from "./config";
 import { randomBytes32 } from "./random";
 import type { SigningOptions } from "./signing";
@@ -194,7 +195,16 @@ export async function acceptStatusChange(
 
     const signer = recoverSigner(typedData, signature);
     if (!signer) throw new DomainError("VALIDATION", "Invalid signature.", { signature: "Invalid signature." });
-    const signerKeyId = await requireSigningKey(tx, credential.organisationId, signer, unixSecondsToDate(issuedAt), now, scope.memberId);
+    const signerKeyId = await requireSigningKey(
+      tx,
+      credential.organisationId,
+      credential.orgId,
+      signer,
+      unixSecondsToDate(issuedAt),
+      now,
+      scope.memberId,
+      () => opts.chain ?? getChain().reader,
+    );
 
     const chainId = Number(domain.chainId);
     if (!Number.isSafeInteger(chainId) || chainId > 2147483647) throw new DomainError("CONFLICT", "Unsupported chain id.");

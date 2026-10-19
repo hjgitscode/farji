@@ -13,7 +13,15 @@
     "db:validate": "prisma validate",
     "db:migrate": "prisma migrate deploy",
     "db:migrate:create": "prisma migrate dev --create-only",
-    "test:db": "vitest run --config vitest.db.config.mts"
+    "test:db": "vitest run --config vitest.db.config.mts",
+    "compile": "hardhat compile --tsconfig contracts/tsconfig.json",
+    "typecheck:contracts": "tsc --noEmit -p contracts/tsconfig.json",
+    "test:contracts": "hardhat test --tsconfig contracts/tsconfig.json",
+    "chain:node": "hardhat node --tsconfig contracts/tsconfig.json",
+    "chain:deploy:local": "hardhat run scripts/deploy.ts --network localhost --tsconfig contracts/tsconfig.json",
+    "chain:abi": "node scripts/export-abi.cjs",
+    "chain:sync": "node scripts/chain-sync.cjs",
+    "test:chain": "npm run compile && vitest run --config vitest.chain.config.mts"
   },
   "dependencies": {
     "@openzeppelin/merkle-tree": "1.0.8",
@@ -30,14 +38,19 @@
     "react-dom": "^19.3.0"
   },
   "devDependencies": {
+    "@nomicfoundation/hardhat-ethers": "3.1.0",
+    "@openzeppelin/contracts": "5.4.0",
     "@tailwindcss/postcss": "^4.3.3",
+    "@types/mocha": "10.0.10",
     "@types/node": "^26.6.4",
     "@types/pg": "^8.23.1",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.3.8",
+    "hardhat": "2.26.5",
     "tailwindcss": "^4.3.3",
+    "ts-node": "10.9.2",
     "typescript": "~6.0.3",
     "vitest": "^5.0.3"
   }

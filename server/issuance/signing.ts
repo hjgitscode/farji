@@ -35,6 +35,7 @@ import {
   type ServiceOptions,
   type SignatureInput,
 } from "./common";
+import { getChain } from "@/server/chain/context";
 import { getEip712Config } from "./config";
 import { randomBytes32 } from "./random";
 
@@ -210,7 +211,16 @@ export async function acceptCredentialSignature(
 
     const signer = recoverSigner(typedData, signature);
     if (!signer) throw new DomainError("VALIDATION", "Invalid signature.", { signature: "Invalid signature." });
-    const signerKeyId = await requireSigningKey(tx, ctx.organisationId, signer, unixSecondsToDate(issuedAt), now, scope.memberId);
+    const signerKeyId = await requireSigningKey(
+      tx,
+      ctx.organisationId,
+      material.orgId,
+      signer,
+      unixSecondsToDate(issuedAt),
+      now,
+      scope.memberId,
+      () => opts.chain ?? getChain().reader,
+    );
 
     // Conditional update is the gate: exactly one accept can move AWAITING_SIGNATURE -> SIGNED.
     const { count } = await tx.credential.updateMany({

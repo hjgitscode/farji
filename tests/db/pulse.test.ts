@@ -6,7 +6,7 @@ import { emptyPulseRoot, pulseLeafHash, SparsePulseTree, verifyPulseProof } from
 import { acceptStatusChange, prepareEndRelationship } from "@/server/issuance/status-change";
 import { enqueuePendingForOrganisation } from "@/server/merkle/enqueue";
 import { applyPulseStatusChange, commitPathUpdate, getHistoricalPulseProof, getPulseProof } from "@/server/merkle/pulse";
-import { TEST_CONFIG, freshWallet, type TestWallet } from "../fixtures/test-wallets";
+import { PERMISSIVE_CHAIN_VIEW, TEST_CONFIG, freshWallet, type TestWallet } from "../fixtures/test-wallets";
 import { db, inRollback, mkOrg, type Tx } from "./helpers";
 import { addKey, approvedCredential, CONTINUING, issuerOf, PERMANENT, signCredential, SIGN_NOW, type Fixture } from "./issuance-helpers";
 
@@ -46,7 +46,7 @@ async function endRelationship(tx: Tx, ctx: Ctx, f: Pick<Fixture, "credentialRow
     issuer,
     f.credentialRowId,
     { signature, issuedAt: prep.issuedAt, effectiveAt: prep.effectiveAt, nonce: prep.nonce },
-    { config: TEST_CONFIG, now },
+    { config: TEST_CONFIG, now, chain: PERMISSIVE_CHAIN_VIEW },
   );
   return { prep, signature, accepted };
 }
@@ -273,15 +273,17 @@ describe("ACTIVE -> ENDED", () => {
       const ctx = await org(tx);
       const f = await signedContinuing(tx, ctx);
       const before = await tx.credential.findUniqueOrThrow({ where: { id: f.credentialRowId } });
+      // (The issuer wallet's own FINALIZED authorisation transaction already exists; ENDED must add none.)
+      const txBefore = await tx.blockchainTransaction.count({ where: { organisationId: ctx.orgId } });
       await endRelationship(tx, ctx, f);
       return {
+        txDelta: (await tx.blockchainTransaction.count({ where: { organisationId: ctx.orgId } })) - txBefore,
         before,
         after: await tx.credential.findUniqueOrThrow({ where: { id: f.credentialRowId } }),
         revocations: await tx.revocation.count({ where: { organisationId: ctx.orgId } }),
         credentialsForVersion: await tx.credential.count({ where: { claimVersionId: f.claimVersionId } }),
         credentialsForOrg: await tx.credential.count({ where: { organisationId: ctx.orgId } }),
         cohortLeaves: await tx.cohortLeaf.count({ where: { organisationId: ctx.orgId } }),
-        transactions: await tx.blockchainTransaction.count({ where: { organisationId: ctx.orgId } }),
         anchors: await tx.anchor.count({ where: { organisationId: ctx.orgId } }),
       };
     });
@@ -291,7 +293,8 @@ describe("ACTIVE -> ENDED", () => {
     expect(r.after).toEqual(r.before); // the Credential row is untouched
     expect(r.after.lifecycleType).toBe("CONTINUING");
     expect(r.cohortLeaves).toBe(0);
-    expect(r.transactions + r.anchors).toBe(0);
+    expect(r.txDelta).toBe(0);
+    expect(r.anchors).toBe(0);
   });
 
   it("an ENDED leaf cannot go back to ACTIVE, and statusSeq cannot decrease (database triggers)", async () => {
@@ -332,13 +335,13 @@ describe("statusSeq replay and rollback protection", () => {
       const f = await signedContinuing(tx, ctx);
       const first = await endRelationship(tx, ctx, f);
       const input = { signature: first.signature, issuedAt: first.prep.issuedAt, effectiveAt: first.prep.effectiveAt, nonce: first.prep.nonce };
-      const replay = await acceptStatusChange(tx, ctx.issuer, f.credentialRowId, input, { config: TEST_CONFIG, now: END_NOW });
+      const replay = await acceptStatusChange(tx, ctx.issuer, f.credentialRowId, input, { config: TEST_CONFIG, now: END_NOW, chain: PERMISSIVE_CHAIN_VIEW });
 
       // A fresh, validly signed message with a new nonce, replayed against the ended leaf.
       const td = first.prep.typedData;
       const nonce = "0x" + "cd".repeat(32);
       const sig2 = await ctx.wallet.signTypedData(td.domain, td.types, { ...td.message, nonce });
-      const other = await caught(acceptStatusChange(tx, ctx.issuer, f.credentialRowId, { ...input, signature: sig2, nonce }, { config: TEST_CONFIG, now: END_NOW }));
+      const other = await caught(acceptStatusChange(tx, ctx.issuer, f.credentialRowId, { ...input, signature: sig2, nonce }, { config: TEST_CONFIG, now: END_NOW, chain: PERMISSIVE_CHAIN_VIEW }));
       const prepAgain = await caught(prepareEndRelationship(tx, ctx.issuer, f.credentialRowId, { effectiveAt: END_AT }, { config: TEST_CONFIG, now: END_NOW }));
       return {
         first,
@@ -486,7 +489,7 @@ describe("status-change authorisation and validation", () => {
       const prep = await prepareEndRelationship(tx, ctx.issuer, f.credentialRowId, { effectiveAt: END_AT }, { config: TEST_CONFIG, now: END_NOW });
       const signature = await ctx.wallet.signTypedData(prep.typedData.domain, prep.typedData.types, prep.typedData.message);
       return caught(
-        acceptStatusChange(tx, ctx.issuer, f.credentialRowId, { signature, issuedAt: prep.issuedAt, effectiveAt: prep.effectiveAt, nonce: prep.nonce }, { config: TEST_CONFIG, now: new Date(END_NOW.getTime() + 15 * 60_000) }),
+        acceptStatusChange(tx, ctx.issuer, f.credentialRowId, { signature, issuedAt: prep.issuedAt, effectiveAt: prep.effectiveAt, nonce: prep.nonce }, { config: TEST_CONFIG, now: new Date(END_NOW.getTime() + 15 * 60_000), chain: PERMISSIVE_CHAIN_VIEW }),
       );
     });
     expect(err).toMatchObject({ code: "VALIDATION" });

@@ -45,3 +45,14 @@ export function checkKeyForNewAttestation(key: IssuerKeyHistory, issuedAt: Date,
 export function wasKeyValidForAttestation(key: IssuerKeyHistory, issuedAt: Date): boolean {
   return isKeyAuthorisedAt(key, issuedAt) && !isKeyCompromisedAt(key, issuedAt);
 }
+
+/**
+ * The evidence rule for the Phase 10 verifier (BLOCKCHAIN_MODEL §7), the TypeScript twin of
+ * `FarjiRegistry.isEvidenceKeyValid`: the wallet was authorised at the signed `issuedAt`, AND, if it was
+ * ever marked compromised, the evidence was anchored BEFORE the compromise. A backdated `issuedAt` cannot
+ * rescue evidence anchored at or after `compromisedAt`; a later retirement never invalidates evidence.
+ */
+export function wasKeyValidForEvidence(key: IssuerKeyHistory, issuedAt: Date, anchoredAt: Date): boolean {
+  if (!isKeyAuthorisedAt(key, issuedAt)) return false;
+  return key.compromisedAt === null || anchoredAt.getTime() < key.compromisedAt.getTime();
+}

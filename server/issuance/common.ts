@@ -45,8 +45,16 @@ export function audit(tx: Tx, scope: IssuerScope, action: string, targetType: st
   });
 }
 
-/** Options shared by the services: clock and randomness are injectable for deterministic tests. */
-export type ServiceOptions = { now?: Date; random?: () => string };
+/** The chain's view of issuer key history (FarjiRegistry.isIssuerAuthorisedAt). The chain is authoritative. */
+export type IssuerChainView = {
+  isIssuerAuthorisedAt(orgId: string, wallet: string, atSeconds: bigint): Promise<boolean>;
+};
+
+/**
+ * Options shared by the services: clock and randomness are injectable for deterministic tests, and
+ * `chain` defaults to the configured chain (server/chain/context) when not supplied.
+ */
+export type ServiceOptions = { now?: Date; random?: () => string; chain?: IssuerChainView };
 
 // ───────────────────────────── credential context ─────────────────────────────
 
@@ -225,24 +233,44 @@ const DENIAL_MESSAGE: Record<KeyDenial, string> = {
  * Finds the IssuerKey for a recovered signer address AMONG THE CREDENTIAL'S OWN ORGANISATION and
  * checks its history. Returns the key id. A wallet of another organisation is indistinguishable
  * from an unknown one.
+ *
+ * D46 (Phase 9): a mirror row alone is never authority. The key must have an `authoriseTransactionId`
+ * whose BlockchainTransaction is FINALIZED, AND the chain itself must report the wallet authorised for
+ * the Organisation at the signed `issuedAt`. A hand-made IssuerKey row therefore cannot sign anything.
  */
 export async function requireSigningKey(
   tx: Tx,
   organisationId: string,
+  organisationOnChainId: string,
   signer: string,
   issuedAt: Date,
   now: Date,
   memberId: string,
+  chain: () => IssuerChainView,
 ): Promise<string> {
   const key = await tx.issuerKey.findFirst({
     where: { walletAddress: signer, organisationId },
-    select: { id: true, validFrom: true, validUntil: true, compromisedAt: true, operatorMemberId: true },
+    select: {
+      id: true,
+      validFrom: true,
+      validUntil: true,
+      compromisedAt: true,
+      operatorMemberId: true,
+      authoriseTransaction: { select: { status: true } },
+    },
   });
   if (!key) throw new DomainError("FORBIDDEN", "The signing wallet is not an authorised issuer wallet of this organisation.");
   const denial = checkKeyForNewAttestation(key, issuedAt, now);
   if (denial) throw new DomainError("FORBIDDEN", DENIAL_MESSAGE[denial]);
   if (key.operatorMemberId && key.operatorMemberId !== memberId) {
     throw new DomainError("FORBIDDEN", "This wallet is operated by a different member of the organisation.");
+  }
+  if (key.authoriseTransaction?.status !== "FINALIZED") {
+    throw new DomainError("FORBIDDEN", "This wallet's authorisation has not been finalised on-chain.");
+  }
+  const authorisedOnChain = await chain().isIssuerAuthorisedAt(organisationOnChainId, signer, dateToUnixSeconds(issuedAt));
+  if (!authorisedOnChain) {
+    throw new DomainError("FORBIDDEN", "The chain does not show this wallet as authorised for the organisation at the signed time.");
   }
   return key.id;
 }
