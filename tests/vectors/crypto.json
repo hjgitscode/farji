@@ -1,0 +1,97 @@
+{
+  "note": "Golden vectors for FARJI Phase 6/7. Phase 8 Solidity tests must reproduce them from tests/vectors/inputs.ts.",
+  "tags": {
+    "CREDENTIAL_ID_TAG": "0x23bc7d097e47a71b0361b5555be24bf9c7b240563ddf018ccdefd97db5bbce3b",
+    "SUBJECT_TAG": "0x745b4ee171fa4f297e654b69cc2544e53542780cec6c54f96967bdeef4dfeef4",
+    "COHORT_LEAF_V1": "0x8ea4d755fe290f5b0edc50baa85180f9ebfa9c5ba19afe149333f619bb88671c",
+    "PULSE_LEAF_V1": "0x8d59fd366368edb4970811df7c1b649a1ac7a7e59dfff4578ba6b7a9a9979b1c",
+    "PULSE_NODE_V1": "0x7ccc4b4ff86ad6c6ae45304489f076900c025713c4d776a4e68db8e3e3ade401",
+    "PULSE_EMPTY_V1": "0xb6add2615cd237147d3a7c4db54cd83125d45de3be48225a76ab53422959b099"
+  },
+  "schema": {
+    "encodeType": "CredentialContent(uint8 category,string title,string organisationName,string startDate,string endDate,string expiryDate,string description,string location,string fieldOfStudy,string credentialNumber,bytes32 contentSalt)",
+    "schemaId": "0xdb6124402b1c7f2a705d9a7330dd4563fd9d746758bfb263b37a2da6dada09b7"
+  },
+  "distinctSalts": true,
+  "credentialId": "0x49e70537f3edc21e783a6cebec46888c2a4be2708f9dcc359a9294ed0eaaa487",
+  "subjectCommitment": "0xc84e151495a8a1a0f623e19d15d93dc36174a1e8f887cdd32022bcb2a4a21d97",
+  "contentDigest": "0xa0ed867e06f845e68363472152de6187134e6fd0cb4a3832099b92d655cb4f93",
+  "domainSeparator": "0x1e36cd2e458929ebe85ed45cfee9d6ce66f7fd3f2b22129fdb21da734a6055f9",
+  "credentialAttestation": {
+    "typedDataHash": "0xf9f32fcae6e6c927b5116e77059fb22243db1cd5f58d9ea0d9ea3a454fa06e89",
+    "signature": "0x843bcda6c30e85ce529f43dc4967c42acd57e84e5b675725b98481bcec7dd5ff2c2d8906f40df39e87bf538eb66dd90fcc6cccb3d94ab032a2d82a74cbd3934f1c",
+    "signer": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"
+  },
+  "statusChangeAttestation": {
+    "typedDataHash": "0x6eeda935e35e939adbc51516870e9f8562be1e074f9a1421391fd022dd7232eb"
+  },
+  "chainRoot": "0x5ddab190cabe9585da40f7ca298471ec5456357735a4c7d4ccc2db319757fd34",
+  "chainRootProofPulse": "0x19e76ae9943dce047fd33129edb131d07d55c921eb435747f8177b2ac43663b3",
+  "pulse": {
+    "depth": 3,
+    "zeroHashes": [
+      "0x4482eaf27b189461539d9d9cfea901ee3a6a3f140021daf45f940f021cbdabff",
+      "0x509d61098d54bc2123f40d85e7f142037e9954c400baeda07b44d54a5b42b682",
+      "0xd80b7c2c324434e8f1e35009062aa7c30f1b320511beb91239607e732b7fb700",
+      "0xd0ba228ab7bacc127b7fa76ee7e80f38ec078a4ae00d4c9487e00f8fcd9140fa"
+    ],
+    "emptyRoot": "0xd0ba228ab7bacc127b7fa76ee7e80f38ec078a4ae00d4c9487e00f8fcd9140fa",
+    "nodeOfZeros": "0x509d61098d54bc2123f40d85e7f142037e9954c400baeda07b44d54a5b42b682",
+    "leafA": "0xb7721ed4dc4d0f4ef47c127ba30f5b44fa169d91a8900b26c2357df6f10deca0",
+    "leafB": "0x40f4c70af62273c4a0db9063e63e400edeb8ac4a332174455dc5fbe74d5b9008",
+    "leafAEnded": "0x201019f5f334ef3fafd11db4114502ff75e09345458bb62b434fa618f1302ae3",
+    "rootAfterA": "0xda6119e6a214e95f21e9817b123d0f8eb8f6fa359d908278a040968a812c04b2",
+    "rootAfterB": "0xc33342277a06b259d1bbb5c35bcbe4eb9c7d0abebd943ed7098b5e24956f53a0",
+    "rootAfterEnd": "0x7efdf62ba188562259b9ec0191700543652ecc386e705e6a2317452eab6e5485",
+    "proofOfB": [
+      "0x201019f5f334ef3fafd11db4114502ff75e09345458bb62b434fa618f1302ae3",
+      "0x509d61098d54bc2123f40d85e7f142037e9954c400baeda07b44d54a5b42b682",
+      "0xd80b7c2c324434e8f1e35009062aa7c30f1b320511beb91239607e732b7fb700"
+    ]
+  },
+  "cohort": {
+    "leafHashes": [
+      "0x91a120a0aa7ee02d99d98d0198d345db17df2424741d63479abda46e23979397",
+      "0xaef5f589986f08ef31015c90960d64541913ab522ba249efc3da504f3709bc53",
+      "0x82c33e0659a02d21a3a61895fbba4f3f4868575ed3f3b5284b3888b465b71392"
+    ],
+    "root": "0x685baf6e475d04cc0a923e46af98ed1e83d0cbad0b17e03114de3aa13a11576e",
+    "entries": [
+      {
+        "credentialId": "0x0101010101010101010101010101010101010101010101010101010101010101",
+        "leafHash": "0x91a120a0aa7ee02d99d98d0198d345db17df2424741d63479abda46e23979397",
+        "proof": {
+          "v": 1,
+          "treeIndex": 0,
+          "siblings": [
+            "0x82c33e0659a02d21a3a61895fbba4f3f4868575ed3f3b5284b3888b465b71392",
+            "0xaef5f589986f08ef31015c90960d64541913ab522ba249efc3da504f3709bc53"
+          ]
+        }
+      },
+      {
+        "credentialId": "0x0202020202020202020202020202020202020202020202020202020202020202",
+        "leafHash": "0xaef5f589986f08ef31015c90960d64541913ab522ba249efc3da504f3709bc53",
+        "proof": {
+          "v": 1,
+          "treeIndex": 1,
+          "siblings": [
+            "0xf19d027b85210f53d6a7170221efbd31b47bb8f7267c4f5d1fc9881b85f0c5e4"
+          ]
+        }
+      },
+      {
+        "credentialId": "0x0303030303030303030303030303030303030303030303030303030303030303",
+        "leafHash": "0x82c33e0659a02d21a3a61895fbba4f3f4868575ed3f3b5284b3888b465b71392",
+        "proof": {
+          "v": 1,
+          "treeIndex": 2,
+          "siblings": [
+            "0x91a120a0aa7ee02d99d98d0198d345db17df2424741d63479abda46e23979397",
+            "0xaef5f589986f08ef31015c90960d64541913ab522ba249efc3da504f3709bc53"
+          ]
+        }
+      }
+    ]
+  }
+}

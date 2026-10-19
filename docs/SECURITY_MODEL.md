@@ -148,6 +148,41 @@ specified in [BLOCKCHAIN_MODEL.md](BLOCKCHAIN_MODEL.md).
 
 ---
 
+## 5c. Issuance and Merkle services (Phases 6–7)
+
+- Every service in `server/issuance/` and `server/merkle/` requires an ISSUER actor with
+  an ACTIVE member of an ACTIVE organisation (checked before any database access and
+  re-checked inside the transaction). Scope is always `actor.organisationId`; another
+  organisation's credential, batch, leaf or proof is `NOT_FOUND`. A credential cannot be
+  signed by the owner of its claim or while its ClaimVersion is not the current one.
+- **No private keys, anywhere in production code.** The server builds EIP-712 typed data
+  and recovers signers; it never signs. Test wallets live only in `tests/fixtures/`, and a
+  structural test fails if `lib/`, `server/`, `app/` or `components/` mention a private
+  key, mnemonic, `new Wallet(`, `.signTypedData(` or a 32-byte hex literal.
+- **Replay and malleability.** The domain binds `chainId` and `verifyingContract` (no
+  default; per-environment deployment); the message binds `orgId`, `credentialId`,
+  `issuedAt` and a random `nonce` (unique per signer); signatures must be canonical
+  low-`s` 65-byte values; `issuedAt` must be recent (10 minutes past, 2 minutes future);
+  one CREDENTIAL attestation per credential and one STATUS_CHANGE per `statusSeq` are
+  database-unique; the next `statusSeq` is never taken from the client.
+- **Issuer keys.** The recovered wallet must be an `IssuerKey` of the credential's own
+  organisation, authorised at `issuedAt`, open now and not compromised; a wallet bound to a
+  different member (`operatorMemberId`) is refused. Retirement never invalidates earlier
+  signatures. Before Phase 9 the `IssuerKey` rows are a trusted mirror (ROADMAP D46); the
+  chain stays authoritative.
+- **Secrets.** `contentSalt` and `subjectSalt` are private. They never appear in audit
+  metadata, Attestations, logs or public/candidate reads; `credentialSalt` is the only
+  salt that may ever become public (on revocation). Three distinct salts per credential
+  (CHECK).
+- **Merkle integrity.** Leaves are rebuilt from Credential rows (never client input);
+  double-hashed, domain-tagged leaves prevent second-preimage and cross-engine confusion;
+  cohort and pulse writes are serialised per organisation by row locks, with a conditional
+  `currentRootSeq` advance, unique `(treeId, rootSeq)` / `(treeId, leafIndex)` and
+  append-only history as backstops. A sealed batch and the update log are immutable;
+  nothing in these services deletes evidence.
+
+---
+
 ## 6. Authentication
 
 - **Supabase Auth** (decided, ROADMAP D1), integrated server-side with Next.js 16

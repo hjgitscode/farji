@@ -167,6 +167,17 @@ in an attestation chain.
   private.
 - Cryptographic columns are nullable while AWAITING_SIGNATURE (Phase 6 fills them);
   a CHECK requires them all once the pipeline moves past it. They are write-once.
+- **`validFrom` vs `issuedAt` (never conflate them).** `validFrom` is the **effective
+  start date of the underlying professional claim** (the claim's `startDate`, 00:00:00
+  UTC); it is *not* the issuance or signing time. `issuedAt` is the **actual
+  cryptographic issuance (signature) timestamp** — the instant the issuer wallet signed —
+  and is what issuer-key validity is judged against. `validUntil` is set for EXPIRING
+  credentials only (at approval, Phase 5).
+- **When each column is written (Phase 6).** At *prepare*: the three salts,
+  `credentialId`, `subjectCommitment`, `contentDigest` and `validFrom`. At *accept* (a
+  verified issuer signature): `issuedAt`, `supersedesCredentialId` and the move to SIGNED,
+  together with the CREDENTIAL Attestation. Then the credential is queued (QUEUED_FOR_ANCHOR)
+  into CohortProof (PERMANENT, EXPIRING) or ProofPulse (CONTINUING).
 - Supersession is derived: a Credential is superseded when another names it in
   `supersedesCredentialId`. Never deleted.
 
@@ -482,6 +493,19 @@ null until signing (Phase 6). REJECT records a ReviewDecision with a reason code
 creates no Credential; the Candidate may later submit a fresh request. `notes` and
 `sourceOfTruthReference` are internal to the Organisation and never returned to the
 Candidate or to public views.
+
+### 7.2b Signing, queuing and ending (Phases 6–7)
+Approval leaves the Credential AWAITING_SIGNATURE. An Issuer of the same Organisation
+*prepares* the signing payload (salts and identifiers are created once; the typed data is
+built from database rows), the issuer's own wallet signs it, and the server *accepts* it
+only if the recovered signer is a wallet of the credential's Organisation that was
+authorised at the signed `issuedAt`, is still open and was never compromised. Only the
+Claim's current ClaimVersion can be signed, and never by the Claim's own owner. A newer
+attested version records `supersedesCredentialId` pointing at the previous SIGNED
+credential. Ending a CONTINUING relationship is a signed StatusChangeAttestation
+(ACTIVE → ENDED, `statusSeq` + 1, `effectiveAt` between the claim start and now): it
+updates one ProofPulse leaf in place and creates **no** Revocation, **no** second
+Credential and deletes nothing.
 
 ### 7.3 Cohort issuance (issuer-initiated)
 For CohortProof batches such as a graduating cohort, the Issuer creates

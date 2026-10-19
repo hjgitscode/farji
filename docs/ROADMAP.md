@@ -18,8 +18,8 @@ Rules that apply to every phase are in [../CLAUDE.md](../CLAUDE.md).
 | 3 | Authentication and RBAC | ✅ Complete (automated gates pass; live Supabase auth verification passed) |
 | 4 | Candidate backend/workflow | ✅ Complete (automated gates and 49/49 DB tests pass; no schema change; signed-in candidate click-through PASSED: dashboard, My records, claim create, v1→v2 edit with v1 preserved, ACTIVE organisation selectable, request submit, history, withdraw with the withdrawn request retained) |
 | 5 | Issuer backend/workflow | ✅ Automated verification complete (lint, typecheck, build, db:validate, 140 unit tests and 78/78 DB tests pass; no schema change). Signed-in issuer browser smoke test DEFERRED (not failed, not passed): the development account owning the test claim was provisioned as the issuer and self-review is correctly blocked, so it needs a separate candidate account |
-| 6 | Cryptography layer | ⬜ Not started |
-| 7 | CohortProof + dynamic ProofPulse Merkle engines | ⬜ Not started |
+| 6 | Cryptography layer | ✅ Complete (automated verification only: unit/golden-vector tests and rollback-only DB tests pass; no schema change; wallet/browser signing UI deferred to Phase 9) |
+| 7 | CohortProof + dynamic ProofPulse Merkle engines | ✅ Complete (automated verification only; no schema change; anchoring deferred to Phases 8–9) |
 | 8 | Final Solidity contract | ⬜ Not started |
 | 9 | Real application-to-blockchain integration | ⬜ Not started |
 | 10 | Verification/state engine | ⬜ Not started |
@@ -134,6 +134,21 @@ Rules that apply to every phase are in [../CLAUDE.md](../CLAUDE.md).
   EIP-712 domain and types (BLOCKCHAIN_MODEL §10); sign/verify helpers; nonce
   generation; server-side signature acceptance in issuance and status-change services.
 - **Exit:** golden vectors; tamper tests; cross-chain/contract replay tests.
+- **Delivered (see D39–D46):** `lib/crypto/` (`constants`, `encoding`, `canonical`,
+  `commitments`, `eip712`, `keys`, `chain-root`); `server/issuance/` (`config`, `random`,
+  `common`, `signing` = prepare + accept, `status-change` = end a CONTINUING relationship).
+  Canonical content with NFC normalisation and fixed enum codes; three independent salts
+  (`crypto.randomBytes`, server only); `credentialId`, `subjectCommitment`, `contentDigest`;
+  EIP-712 domain with `chainId` + `verifyingContract` (no default) and the nested
+  `CredentialContent` struct; canonical low-`s` signature handling; signer recovery; issuer-key
+  checks at `issuedAt` and now; Attestation persistence; AWAITING_SIGNATURE → SIGNED →
+  QUEUED_FOR_ANCHOR. The server holds no private key (test wallets only in `tests/fixtures/`).
+  Golden vectors in `tests/vectors/` (hand-built abi.encode/hashStruct cross-checks).
+- **`validFrom` / `issuedAt`:** `validFrom` is the *effective start date of the underlying
+  professional claim*; `issuedAt` is the *actual cryptographic issuance (signature)
+  timestamp*. They are never conflated.
+- **Verification:** automated tests only (no browser wallet until Phase 9). No schema change
+  and no migration.
 
 ## Phase 7 — CohortProof + dynamic ProofPulse Merkle engines
 - **Goal:** Both engines per MERKLE_MODEL.
@@ -144,6 +159,18 @@ Rules that apply to every phase are in [../CLAUDE.md](../CLAUDE.md).
 - **Must not:** rebuild ProofPulse trees on a schedule, per calendar month or during
   anchoring.
 - **Exit:** MERKLE_MODEL §6 tests pass, including incremental == reference property test.
+- **Delivered (see D41–D45):** `lib/merkle/cohort.ts` (OpenZeppelin `StandardMerkleTree`,
+  pinned `1.0.8`, leaves sorted by hash, verifier independent of the library) and
+  `lib/merkle/pulse.ts` (depth-20 positional tree, zero hashes, O(depth) path update, sparse
+  tree, log replay); `server/merkle/` (`material`, `cohort` = OPEN-batch queuing + sealing +
+  proofs, `pulse` = insert / end / current and historical proofs, `enqueue` = routing and the
+  retry sweep). One OPEN batch per organisation (supplementary batches for late entrants;
+  sealed batches immutable); one tree per organisation with stable, never-reused leaf indexes,
+  `ProofPulseNode` path persistence, append-only `ProofPulseUpdate`, optimistic `rootSeq`,
+  capacity refusal, and historical proofs by replaying the update log (closes D21).
+  `chainRoot` computed off-chain with a golden vector for Phase 8.
+- **Verification:** automated tests only, including the incremental-vs-reference property test.
+  No Revocation, no anchor, no chain transaction is created. No schema change and no migration.
 
 ## Phase 8 — Final Solidity contract
 - **Goal:** Non-upgradeable `FarjiRegistry` in `contracts/` per BLOCKCHAIN_MODEL.
@@ -241,7 +268,7 @@ Rules that apply to every phase are in [../CLAUDE.md](../CLAUDE.md).
 | D13 | Past employment | **No automatic second PERMANENT Credential** when a CONTINUING relationship ends; the same Credential becomes ENDED and stays historically verifiable. |
 | D14 | Public rejections | **Not public by default**; retained internally via append-only ReviewDecision/AuditEvent. |
 | D20 | Chained attestations | **Independent chains per (Organisation, attestation type)** — e.g. ORG-XYZ + COHORT and ORG-XYZ + PROOF_PULSE — with `chainRoot = keccak256(batchRoot, previousChainRoot, organisationId, attestationType, epoch)`; exact Solidity encoding in Phase 8. Version lineage via `supersedesCredentialId`. |
-| D21 | ProofPulse historical storage | Retain anchored roots and enough evidence to verify historical proofs; no requirement to keep every historical intermediate node in the hot DB; archiving/versioning strategy chosen in Phase 7. |
+| D21 | ProofPulse historical storage | Retain anchored roots and enough evidence to verify historical proofs; no requirement to keep every historical intermediate node in the hot DB. **Strategy chosen in Phase 7: replay of the append-only `ProofPulseUpdate` log** (the replay must reproduce every recorded root); no extra storage or schema. Archiving can be added later. |
 | D23 | ProofPulse trees per Organisation | **Exactly one ProofPulse tree per Organisation** for the MVP; it may hold many CONTINUING Credentials, with scope/type in each leaf. Each Organisation therefore has one COHORT and one PROOF_PULSE attestation chain. No `treeId`/sharding in the MVP; multiple trees or sharding are a possible later scalability extension, in which case the chain key must include `treeId`. |
 | D24 | Canonical entity naming | Claim / ClaimVersion / Credential; **Attestation** = EIP-712 signature evidence; **Anchor** = observed Merkle/chain entry. |
 | D25 | Issuer key lifecycle | **No IssuerKeyWindow.** One `IssuerKey` row per wallet authorisation lifecycle (`organisationId`, `walletAddress` globally unique, `validFrom`, `validUntil` nullable, `compromisedAt` nullable, `createdAt`). A retired or compromised wallet is **never re-authorised** in FARJI; rotation creates a new row for a fresh wallet. Historical checks use the key's original validity period. |
@@ -256,6 +283,14 @@ Rules that apply to every phase are in [../CLAUDE.md](../CLAUDE.md).
 | D36 | Candidate visibility of rejections | A candidate sees their own request statuses and rejection reason code; internal reviewer notes and source-of-truth references are never returned. Request statuses are operational labels, not verification states. |
 | D37 | Credential at approval | Approval creates the Credential in `AWAITING_SIGNATURE` with `lifecycleType` copied from the approved version's proposal and, for EXPIRING, `validUntil` = start of the expiry date (UTC; the CHECK requires it for EXPIRING). No salts, `credentialId`, digests, `validFrom` or `issuedAt` are written: Phase 6 creates them at signing, so no unused secret material exists before then. Only the current ClaimVersion can be approved; a CONTINUING approval creates one CONTINUING Credential only. |
 | D38 | Decision concurrency and review limits | The first write of approve/reject is a conditional open → terminal update (row lock serialises concurrent decisions); `OTHER` requires explanatory notes; notes ≤ 2000 and source-of-truth reference ≤ 500 characters; no separate "start review" step in the MVP (SUBMITTED and IN_REVIEW are both decidable). |
+| D39 | Wallet-visible content | `CredentialAttestation` embeds the salted `CredentialContent` as a **nested EIP-712 struct** instead of `bytes32 contentDigest`. A nested struct is encoded as its `hashStruct`, so `contentDigest` is unchanged while the issuer's wallet shows the real title, dates and organisation. |
+| D40 | One content schema | One universal V1 `CredentialContent` struct for all four categories; per-category field rules are enforced by canonicalisation. `schemaId` = the struct's type hash; a future change is a new struct string and so a new `schemaId`. |
+| D41 | `validFrom` vs `issuedAt` | `Credential.validFrom` = the **effective start date of the underlying professional claim** (the claim's `startDate` at 00:00:00 UTC). It is NOT the credential issuance or signing time. `Credential.issuedAt` = the **actual cryptographic issuance (signature) timestamp**. The two are separate in canonical data, EIP-712 messages, leaves, helpers, tests and documentation, and are never conflated. |
+| D42 | ProofPulse scope | By claim category: EXPERIENCE → EMPLOYMENT, EDUCATION → ENROLMENT, MEMBERSHIP → MEMBERSHIP, and CERTIFICATION with CONTINUING lifecycle → MEMBERSHIP. |
+| D43 | ProofPulse insert effective time | An inserted ACTIVE leaf has `statusSeq = 1` and `statusEffectiveAt` = the credential's `validFrom` (claim start); an ENDED leaf carries the signed `effectiveAt`. |
+| D44 | What can be signed | Only the Claim's **current** ClaimVersion can be prepared or signed, and never by the owner of the claim. If the candidate edits after approval, the old Credential stays unsigned and the new version needs its own request. |
+| D45 | Cohort tree library | CohortProof uses the audited `@openzeppelin/merkle-tree` (pinned exactly, `1.0.8`): leaves sorted by leaf hash, sorted-pair parents, complete-binary-tree odd rule. `CohortLeaf.position` is the insertion sequence; tree order is by hash. |
+| D46 | Issuer-key trust before Phase 9 | Until Phase 9, signature acceptance trusts the `IssuerKey` mirror rows (test fixtures; manual rows in development only). From Phase 9 it must also require an observed authorisation transaction (`authoriseTransactionId`); the chain remains authoritative for key history. |
 | D28 | Database target and identity keys | Supabase-hosted PostgreSQL via Prisma 7 (driver adapter `pg`). UUID internal keys (v7); `User.authUserId` links Supabase Auth; email is not duplicated; current ClaimVersion = highest `versionNumber`; one Credential per ClaimVersion. |
 | D22 | Positive state + anchoring | APPROVED / SIGNED / QUEUED_FOR_ANCHOR are operational; an on-chain positive verification is claimed only after the relevant anchor meets the confirmation/finality policy. |
 

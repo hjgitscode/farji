@@ -9,21 +9,34 @@ export const db = createDbClient((process.env.DIRECT_URL ?? process.env.DATABASE
 
 class Rollback extends Error {}
 
-/** Runs fn in a transaction that is ALWAYS rolled back. Errors from fn propagate. */
+/** The remote database dropped the connection (Prisma P1017): infrastructure, not a test result. */
+const isDroppedConnection = (e: unknown) =>
+  typeof e === "object" && e !== null && ((e as { code?: string }).code === "P1017" || /closed the connection/i.test((e as Error).message ?? ""));
+
+/**
+ * Runs fn in a transaction that is ALWAYS rolled back. Errors from fn propagate.
+ * Because nothing is ever committed, a whole run is safely repeated if the remote Supabase
+ * connection is dropped mid-run (only that specific infrastructure error is retried; assertion
+ * failures and database rule violations are never retried).
+ */
 export async function inRollback<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
-  let result!: T;
-  try {
-    await db.$transaction(
-      async (tx) => {
-        result = await fn(tx);
-        throw new Rollback();
-      },
-      { timeout: 25000 },
-    );
-  } catch (e) {
-    if (!(e instanceof Rollback)) throw e;
+  for (let attempt = 0; ; attempt++) {
+    let result!: T;
+    try {
+      await db.$transaction(
+        async (tx) => {
+          result = await fn(tx);
+          throw new Rollback();
+        },
+        { timeout: 100000, maxWait: 20000 },
+      );
+    } catch (e) {
+      if (e instanceof Rollback) return result;
+      if (attempt < 2 && isDroppedConnection(e)) continue;
+      throw e;
+    }
+    return result;
   }
-  return result;
 }
 
 export const bytes32 = () => "0x" + randomBytes(32).toString("hex");

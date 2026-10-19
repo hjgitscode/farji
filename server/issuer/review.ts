@@ -39,9 +39,9 @@ const isUniqueViolation = (e: unknown) => typeof e === "object" && e !== null &&
 const dbMessage = (e: unknown) => (e instanceof Error ? e.message : "");
 
 /** The verified issuer identity, narrowed so organisation and member are non-null. */
-type IssuerScope = { userId: string; organisationId: string; memberId: string };
+export type IssuerScope = { userId: string; organisationId: string; memberId: string };
 
-function assertIssuer(actor: Actor): IssuerScope {
+export function assertIssuer(actor: Actor): IssuerScope {
   if (
     !actor ||
     actor.role !== "ISSUER" ||
@@ -60,7 +60,7 @@ async function inTransaction<T>(db: ReviewDb, fn: (tx: Tx) => Promise<T>): Promi
 }
 
 /** The actor's membership may have changed since the guard ran: confirm it inside the transaction. */
-async function assertStillActiveMember(tx: Tx, scope: IssuerScope): Promise<void> {
+export async function assertStillActiveMember(tx: Pick<Tx, "organisationMember">, scope: IssuerScope): Promise<void> {
   const member = await tx.organisationMember.findFirst({
     where: {
       id: scope.memberId,

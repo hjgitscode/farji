@@ -68,7 +68,7 @@ Key custody (decided for the MVP / first Sepolia deployment):
 | `credentialId` | `keccak256(abi.encode(CREDENTIAL_ID_TAG, orgId, credentialSalt))` | `credentialSalt` is random 32 bytes. Embeds the issuing Organisation, which is how **credential ownership by organisation** is enforced without storing every credential on-chain. |
 | `attestationType` | `COHORT` or `PROOF_PULSE` | Selects an attestation chain |
 | `chainRoot` | See §8.1 | Identifies one anchor; unique because it commits to the previous `chainRoot` |
-| `subjectCommitment` | `keccak256(abi.encode(SUBJECT_TAG, platformSubjectId, subjectSalt))` | Hides who the candidate is |
+| `subjectCommitment` | `keccak256(abi.encode(bytes32 SUBJECT_TAG, bytes16 platformSubjectId, bytes32 subjectSalt))` | Hides who the candidate is. `platformSubjectId` is the 16 raw bytes of the Candidate's internal `User.id` UUID; `subjectSalt` is per Credential, so one Candidate's Credentials are not linkable by commitment. Tags are `keccak256(utf8("FARJI_CREDENTIAL_ID_V1"))`, `keccak256(utf8("FARJI_SUBJECT_V1"))`. |
 
 Each new attested ClaimVersion gets a new `credentialId`. Version lineage is linked
 via `supersedesCredentialId` inside the signed attestation.
@@ -201,6 +201,11 @@ Conceptual commitment (exact Solidity encoding decided in Phase 8):
 ```
 chainRoot = keccak256(batchRoot, previousChainRoot, organisationId, attestationType, epoch)
 ```
+Phase 7 prepared the off-chain side: `lib/crypto/chain-root.ts` computes
+`keccak256(abi.encode(bytes32 batchRoot, bytes32 previousChainRoot, bytes32 orgId,
+uint8 attestationType, uint64 epoch))` (COHORT = 0, PROOF_PULSE = 1, `epoch` from 1) and
+has a committed golden vector (`tests/vectors/crypto.json`) that the Phase 8 Solidity
+implementation must reproduce — or both sides change together.
 - `previousChainRoot` is `0x0` for epoch 1.
 - `epoch` is the anchor's position in its own chain (1, 2, 3 …), not a calendar period.
 - The contract computes `chainRoot` itself from the stored head and the submitted
@@ -253,11 +258,16 @@ Domain:
 name: "FARJI", version: "1", chainId: <network>, verifyingContract: <FarjiRegistry>
 ```
 
-Types (field list finalised in Phase 6):
+Types (final, Phase 6; ROADMAP D39–D40):
 ```
+CredentialContent(
+  uint8 category, string title, string organisationName, string startDate,
+  string endDate, string expiryDate, string description, string location,
+  string fieldOfStudy, string credentialNumber, bytes32 contentSalt)
+
 CredentialAttestation(
   bytes32 credentialId, bytes32 orgId, bytes32 subjectCommitment,
-  bytes32 contentDigest, bytes32 schemaId, uint8 lifecycleType,
+  CredentialContent content, bytes32 schemaId, uint8 lifecycleType,
   uint64 validFrom, uint64 validUntil, bytes32 supersedesCredentialId,
   uint64 issuedAt, bytes32 nonce)
 
@@ -265,12 +275,48 @@ StatusChangeAttestation(
   bytes32 credentialId, bytes32 orgId, uint32 leafIndex, uint8 newStatus,
   uint64 effectiveAt, uint32 statusSeq, uint64 issuedAt, bytes32 nonce)
 ```
-- `contentDigest` = EIP-712 `hashStruct` of the canonicalised, salted
-  `CredentialContent` (schema per category, versioned by `schemaId`).
-- Issuers sign in their own wallet; the content they sign is visible to them in the
-  wallet prompt but is never sent on-chain.
+- **`content` is a nested struct, not a `bytes32 contentDigest`.** In EIP-712 a nested
+  struct is encoded as its `hashStruct`, so
+  `contentDigest = hashStruct(CredentialContent)` (salted with `contentSalt`) is exactly
+  the value that would otherwise have been signed — while the issuer's wallet now shows
+  the real title, dates and organisation instead of an opaque hash. The content is never
+  sent on-chain.
+- **One universal V1 content struct** serves all four categories; per-category field
+  rules (`fieldOfStudy` only for EDUCATION, `credentialNumber` only for CERTIFICATION,
+  `endDate` only for PERMANENT, `expiryDate` exactly for EXPIRING) are enforced by
+  canonicalisation, not by separate structs. `schemaId` is the type hash of
+  `CredentialContent` (`keccak256(utf8(encodeType))`); a future schema change is a new
+  struct string, hence a new `schemaId`.
+- **`validFrom` is the effective start date of the underlying professional claim**
+  (the claim's `startDate` at 00:00:00 UTC). It is NOT the credential issuance or
+  signing time. **`issuedAt` is the actual cryptographic issuance (signature)
+  timestamp** and is the instant against which issuer-key validity is judged (§7). The
+  two are separate fields everywhere (canonical data, message, leaves, helpers, docs) and
+  are never conflated. `validUntil` is the expiry (start of the expiry date, UTC) for
+  EXPIRING credentials and `0` otherwise.
+- **Canonical content** (`lib/crypto/canonical.ts`): JSON is never hashed. Nine string
+  fields are normalised (Unicode NFC, `\r\n`/`\r` → `\n`, trim, control characters
+  rejected, absent/`null`/empty → `""`), dates must be strict `YYYY-MM-DD`, unknown keys
+  and non-string values make the content invalid, and enum codes are fixed
+  (`category`: EXPERIENCE 0 · EDUCATION 1 · CERTIFICATION 2 · MEMBERSHIP 3;
+  `lifecycleType`: PERMANENT 0 · CONTINUING 1 · EXPIRING 2; `newStatus`: ACTIVE 0 ·
+  ENDED 1). `orgId` is the Organisation's bytes32 (never its database id).
+- Issuers sign in their own wallet; the server only BUILDS the message from database
+  rows (the client returns just the signature plus the `issuedAt` and `nonce` it was
+  given) and RECOVERS the signer. Signatures must be canonical: 65 bytes, `v ∈ {27, 28}`,
+  low-`s` (the malleable high-`s` twin is rejected).
+- The EIP-712 domain has no default: `FARJI_CHAIN_ID` and `FARJI_REGISTRY_ADDRESS` must
+  be configured, and every environment uses its own deployment, so signatures cannot be
+  replayed across chains, contracts or environments.
 - Signatures are verified server-side (ethers `verifyTypedData`) before acceptance,
-  and again by the verification engine on every evaluation.
+  and again by the verification engine on every evaluation (Phase 10).
+- A signature is accepted only if the recovered wallet is an `IssuerKey` of the
+  credential's own Organisation that was authorised at `issuedAt`, is still open now,
+  and is not compromised (`lib/crypto/keys.ts`). Retiring a key later never invalidates
+  a signature made while it was valid.
+- Before Phase 9, acceptance trusts the `IssuerKey` mirror rows (test fixtures; manual
+  rows in development only). From Phase 9 it must also require an observed authorisation
+  transaction (ROADMAP D46); the chain remains authoritative for key history.
 
 ## 11. Nonce and replay protection
 

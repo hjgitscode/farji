@@ -8,6 +8,7 @@ export default defineConfig({
     include: ["tests/db/**/*.test.ts"],
     setupFiles: ["tests/db/setup.ts"],
     fileParallelism: false,
-    testTimeout: 30000,
+    // Phase 6/7 fixtures sign several credentials per test over a remote database.
+    testTimeout: 120000,
   },
 });

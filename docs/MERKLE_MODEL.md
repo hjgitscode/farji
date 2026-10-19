@@ -58,9 +58,34 @@ lifecycleType, validFrom, validUntil, issuedAt, schemaId
 ```
 (`validUntil = 0` for PERMANENT.)
 
+Exact formula (Phase 7, `lib/merkle/cohort.ts`):
+```
+leaf = keccak256(keccak256(abi.encode(
+  bytes32 COHORT_LEAF_V1, bytes32 orgId, bytes32 credentialId, bytes32 subjectCommitment,
+  bytes32 contentDigest, uint8 lifecycleType, uint64 validFrom, uint64 validUntil,
+  uint64 issuedAt, bytes32 schemaId)))
+COHORT_LEAF_V1 = keccak256(utf8("FARJI_COHORT_LEAF_V1"))
+```
+`validFrom` is the effective start date of the underlying claim; `issuedAt` is the actual
+signature timestamp (they are different values and never interchanged). The leaf is
+always rebuilt from the Credential row; a stored `leafHash` that no longer matches blocks
+sealing. Only PERMANENT (0) and EXPIRING (2) credentials are accepted (CONTINUING is
+rejected by the engine and by a database trigger).
+
 ### 2.2 Construction
 - Compatible with OpenZeppelin `StandardMerkleTree` / `MerkleProof`:
   double-hashed leaves, **sorted-pair** internal hashing, deterministic leaf order.
+  The library (pinned to an exact version) sorts leaves **by leaf hash**, so the root
+  depends only on the leaf *set*, never on insertion or race order. Odd nodes follow the
+  library's complete-binary-tree layout (a lone node is promoted; the last node is never
+  duplicated). `CohortLeaf.position` is the **insertion sequence** (immutable at insert);
+  the tree order comes from sorting.
+- Duplicate credentials are rejected before building; an empty batch cannot be sealed; a
+  single-leaf batch has root = leaf and an empty proof.
+- Proof format, written once at sealing: `{ "v": 1, "treeIndex": n, "siblings": ["0x…"] }`.
+- Sealing locks the Organisation row, rebuilds every leaf from its Credential and builds
+  the tree once. A late entrant never mutates a sealed batch: it joins the next OPEN
+  batch (a supplementary batch).
 - A batch is OPEN while approved+signed Credentials accumulate (it may contain a
   single Credential), then SEALED (no further changes), then ANCHORED.
 - The **full tree** (all leaves, all layers or enough to rebuild deterministically)
@@ -136,6 +161,26 @@ scope, status (ACTIVE | ENDED), statusEffectiveAt, statusSeq
   StatusChangeAttestation and prevents replay/rollback (an old ACTIVE attestation
   cannot restore an ENDED leaf).
 
+Exact formulas (Phase 7, `lib/merkle/pulse.ts`):
+```
+leaf = keccak256(keccak256(abi.encode(
+  bytes32 PULSE_LEAF_V1, bytes32 orgId, uint32 leafIndex, bytes32 credentialId,
+  bytes32 subjectCommitment, bytes32 contentDigest, uint8 scope, uint8 status,
+  uint64 statusEffectiveAt, uint32 statusSeq)))
+node = keccak256(abi.encode(bytes32 PULSE_NODE_V1, bytes32 left, bytes32 right))   // positional
+zero[0] = keccak256(PULSE_EMPTY_V1);  zero[i+1] = node(zero[i], zero[i])
+```
+- `scope`: EMPLOYMENT 0 · ENROLMENT 1 · MEMBERSHIP 2, from the claim category
+  (EXPERIENCE → EMPLOYMENT, EDUCATION → ENROLMENT, MEMBERSHIP and CERTIFICATION →
+  MEMBERSHIP; ROADMAP D42). `status`: ACTIVE 0 · ENDED 1.
+- On insertion `status = ACTIVE`, `statusSeq = 1`, `statusEffectiveAt` = the credential's
+  `validFrom` (the effective start of the claim, not the signing time; ROADMAP D43). An
+  ENDED leaf carries the `effectiveAt` and `statusSeq` of the signed StatusChangeAttestation.
+- Level 0 holds the leaf hashes and level `depth` the root; the node on a leaf's path at
+  level `l` is at position `leafIndex >> l` and its sibling at `(leafIndex >> l) ^ 1`. A
+  node that was never written equals `zero[level]`. Depth is 20 (capacity 1,048,576); a
+  full tree refuses new leaves and leaves the credential SIGNED.
+
 ### 3.4 Operations
 | Operation | Trigger | Work |
 |---|---|---|
@@ -145,11 +190,13 @@ scope, status (ACTIVE | ENDED), statusEffectiveAt, statusSeq
 | `getHistoricalProof(leafIndex, epoch)` | Verification against an older anchored root | From retained proof material (§3.5). |
 | `anchorEpoch` | Issuer action (periodic or after changes) | Read `currentRoot` + `currentRootSeq`; submit on-chain. No hashing of the tree. |
 
-Every mutation runs in one database transaction that (a) checks the expected
-`currentRootSeq` (optimistic concurrency, so two concurrent updates cannot both
-derive from the same old root), (b) writes the leaf, (c) writes the `depth`
-recomputed path nodes, (d) records whatever proof material §3.5 requires,
-(e) advances `currentRoot`/`currentRootSeq`.
+Every mutation runs in one database transaction that (a) locks the tree row and reads
+its fresh state, then checks the expected `currentRootSeq` (optimistic concurrency, so
+two concurrent updates cannot both derive from the same old root), (b) writes the leaf,
+(c) writes the `depth + 1` recomputed path nodes, (d) records whatever proof material
+§3.5 requires, (e) advances `currentRoot`/`currentRootSeq`. In the implementation the
+conditional advance of `currentRootSeq` is the first write, so a writer working from a
+stale snapshot is rejected cleanly before anything else is written.
 
 ### 3.5 Persistence and history
 Required (permanent):
@@ -163,6 +210,17 @@ Required (permanent):
   hashes (a rewritable projection/cache, derivable from the update log).
 - Every anchored root, and **enough evidence to verify inclusion proofs against it**
   for every leaf it contained, e.g. "Aarav was ACTIVE as of the January checkpoint".
+
+**Strategy chosen in Phase 7 (ROADMAP D21 closed): replay of the append-only update log.**
+`ProofPulseUpdate` (one row per change, with `rootSeq`, `leafIndex`, `newLeafHash`,
+`previousRoot`, `newRoot` and the causing Attestation) is the permanent history. A proof
+against the root at any `rootSeq` is rebuilt by replaying the log up to that `rootSeq`
+into a sparse in-memory tree (O(n·depth)); the replay must reproduce every recorded
+`newRoot`, so a corrupt log fails loudly instead of yielding a plausible proof. No
+historical intermediate nodes are stored, no schema addition is needed, and the leaf
+preimage at that time is rebuilt from the Credential plus the Attestation named by
+`causedByAttestationId`. Archiving or snapshots can be added later without changing
+verification.
 
 Not required:
 - There is **no** permanent requirement that every historical intermediate Merkle
