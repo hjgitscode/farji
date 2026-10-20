@@ -251,6 +251,14 @@ Admin's browser wallet → events synced → key history visible in Admin and Is
   Organisation policy such as `pulseFreshnessDays`) and passes them in.
 - Output is a primary state plus the full list of checks, used by "View verification
   details" and by the proof bundle.
+- **As built (Phase 10).** `lib/verification` = `types`, `evidence` (signature, anchor-chain, window and
+  key-at-anchor primitives), `permanent` (CohortProof path shared with EXPIRING), `expiring`, `continuing`
+  (ProofPulse path: log replay, freshness, ENDED), `precedence` (A–E in fixed order), `derive` (public API) and
+  `labels` (display text). `server/verification/load.ts` maps database rows to the engine's raw-evidence input
+  (read-only; per-call cache of anchors and update logs); `server/verification/service.ts` supplies policy
+  (`maxAnchorDelay` 30 days, the Organisation's `pulseFreshnessDays`, the configured EIP-712 domain) and exposes
+  `deriveStateForCredential` and `deriveCandidateClaimStates` (own claims only). The candidate record pages
+  show the derived state; the state is recomputed on each request and never stored. Decisions D53–D59.
 
 ---
 

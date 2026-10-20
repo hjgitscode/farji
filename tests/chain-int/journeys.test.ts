@@ -7,9 +7,10 @@ import { acceptCredentialSignature, prepareCredentialSigning } from "@/server/is
 import { acceptStatusChange, prepareEndRelationship } from "@/server/issuance/status-change";
 import { getCohortProof, sealCohortBatch } from "@/server/merkle/cohort";
 import { getHistoricalPulseProof, getPulseProof } from "@/server/merkle/pulse";
+import { deriveCandidateClaimStates, deriveStateForCredential } from "@/server/verification/service";
 import { db, inRollback, type Tx } from "../db/helpers";
 import { approvedCredential, CONTINUING, PERMANENT, type Fixture } from "../db/issuance-helpers";
-import { buildSendRecord, env, finalise, onboard, signingClock, sync, type Onboarded } from "./harness";
+import { buildSendRecord, chainNowSeconds, env, finalise, mine, onboard, signingClock, sync, type Onboarded } from "./harness";
 
 afterAll(async () => {
   await db.$disconnect();
@@ -210,3 +211,109 @@ describe("journey: CONTINUING -> ProofPulse -> anchor -> END -> new epoch", () =
   });
 });
 
+
+// ───────────────────────────── Phase 10: derived verification state from REAL finalised evidence ─────────────────────────────
+
+/** Moves the node's clock forward and mines a block, so anchors land well after the signed `issuedAt`. */
+async function advanceChain(seconds: number) {
+  await env().provider.send("evm_increaseTime", [seconds]);
+  await mine(1);
+}
+
+describe("journey: the verification state is derived from real chain evidence", () => {
+  const stateAt = async (tx: Tx, rowId: string, plusSeconds = 60) => (await deriveStateForCredential(tx, rowId, { domain: env().eip, now: await signingClock(plusSeconds) }))!;
+
+  it("PERMANENT: PENDING until the anchor is FINALIZED, then PERMANENT_VALID; a finalised revocation then makes it REVOKED", async () => {
+    const r = await inRollback(async (tx) => {
+      const o = await onboard(tx);
+      const f = await approvedCredential(tx, PERMANENT, { orgId: o.org.id, issuer: o.issuer });
+      const { now } = await signOnChain(tx, o, f);
+      const signedOnly = await stateAt(tx, f.credentialRowId);
+      const sealed = await sealCohortBatch(tx, o.issuer, { now });
+
+      await advanceChain(3600);
+      const anchor = await buildSendRecord(tx, o.issuer, o.wallet, "ANCHOR_COHORT", sealed.batchId, {}, now);
+      const mined = await sync(tx, anchor.rec.id); // CONFIRMED: mined, not final
+      const whileConfirmed = await stateAt(tx, f.credentialRowId);
+      await finalise(tx, anchor.rec.id);
+      const valid = await stateAt(tx, f.credentialRowId);
+      const farFuture = await stateAt(tx, f.credentialRowId, 5 * 365 * 86400);
+
+      const rev = await buildSendRecord(tx, o.issuer, o.wallet, "REVOKE_CREDENTIAL", f.credentialRowId, { reason: "FRAUD" }, await signingClock());
+      await sync(tx, rev.rec.id);
+      const revokedWhileConfirmed = await stateAt(tx, f.credentialRowId);
+      await finalise(tx, rev.rec.id);
+      const revoked = await stateAt(tx, f.credentialRowId);
+      const claim = await deriveCandidateClaimStates(tx, f.cand, undefined, { domain: env().eip, now: await signingClock(60) });
+      return { signedOnly, mined, whileConfirmed, valid, farFuture, revokedWhileConfirmed, revoked, claim: claim.states.get(f.claimId) };
+    });
+    expect(r.signedOnly.state).toBe("PENDING");
+    expect(r.mined.status).toBe("CONFIRMED");
+    expect(r.whileConfirmed.state).toBe("PENDING"); // mined is not final: no positive state
+    expect(r.valid.state).toBe("PERMANENT_VALID");
+    expect(r.valid.checks.filter((c) => c.status === "FAIL")).toEqual([]);
+    expect(r.farFuture.state).toBe("PERMANENT_VALID");
+    expect(r.revokedWhileConfirmed.state).toBe("PERMANENT_VALID"); // a revocation counts only once FINALIZED
+    expect(r.revoked.state).toBe("REVOKED");
+    expect(r.claim?.state).toBe("REVOKED");
+  });
+
+  it("CONTINUING: CURRENTLY_ATTESTED, STALE as time passes with no tree change, a re-affirming epoch restores it, ENDED is not REVOKED", async () => {
+    const r = await inRollback(async (tx) => {
+      const o = await onboard(tx);
+      const f = await approvedCredential(tx, CONTINUING, { orgId: o.org.id, issuer: o.issuer });
+      const { now } = await signOnChain(tx, o, f);
+      const tree = await tx.proofPulseTree.findUniqueOrThrow({ where: { organisationId: o.org.id } });
+
+      await advanceChain(3600);
+      const a1 = await buildSendRecord(tx, o.issuer, o.wallet, "ANCHOR_PROOF_PULSE", tree.id, {}, now);
+      await finalise(tx, a1.rec.id);
+      const fresh = await stateAt(tx, f.credentialRowId);
+      const updatesBefore = await tx.proofPulseUpdate.count({ where: { treeId: tree.id } });
+      const stale = await stateAt(tx, f.credentialRowId, 46 * 86400);
+      const updatesAfter = await tx.proofPulseUpdate.count({ where: { treeId: tree.id } });
+
+      await advanceChain(46 * 86400);
+      const clock = await signingClock();
+      const a2 = await buildSendRecord(tx, o.issuer, o.wallet, "ANCHOR_PROOF_PULSE", tree.id, {}, clock);
+      await finalise(tx, a2.rec.id);
+      const restored = await stateAt(tx, f.credentialRowId);
+
+      const endClock = await signingClock(10);
+      const effectiveAt = new Date(Math.floor(endClock.getTime() / 1000 - 3600) * 1000);
+      const e = env();
+      const prep = await prepareEndRelationship(tx, o.issuer, f.credentialRowId, { effectiveAt }, { config: e.eip, now: endClock });
+      const signature = await o.wallet.signTypedData(prep.typedData.domain, prep.typedData.types, prep.typedData.message);
+      await acceptStatusChange(tx, o.issuer, f.credentialRowId, { signature, issuedAt: prep.issuedAt, effectiveAt: prep.effectiveAt, nonce: prep.nonce }, { config: e.eip, now: endClock, chain: e.reader });
+      const ended = await stateAt(tx, f.credentialRowId, 20);
+      return { fresh, stale, restored, ended, same: updatesBefore === updatesAfter, revocations: await tx.revocation.count({ where: { organisationId: o.org.id } }) };
+    });
+    expect(r.fresh.state).toBe("CURRENTLY_ATTESTED");
+    expect(r.stale.state).toBe("STALE_NO_RECENT_ATTESTATION");
+    expect(r.same).toBe(true); // time passing did not touch the tree
+    expect(r.restored.state).toBe("CURRENTLY_ATTESTED");
+    expect(r.restored.evidenceSummary.latestPulseEpoch).toBe(2);
+    expect(r.ended.state).toBe("ENDED");
+    expect(r.ended.revokedAt).toBeNull();
+    expect(r.revocations).toBe(0);
+  });
+
+  it("a key compromised on-chain BEFORE the evidence is anchored yields INVALID_PROOF", async () => {
+    const r = await inRollback(async (tx) => {
+      const o = await onboard(tx);
+      const f = await approvedCredential(tx, PERMANENT, { orgId: o.org.id, issuer: o.issuer });
+      const { now } = await signOnChain(tx, o, f);
+      const sealed = await sealCohortBatch(tx, o.issuer, { now });
+      await advanceChain(3600);
+      // The admin marks the wallet compromised as of "just after it signed" BEFORE the batch is anchored.
+      const compromisedAt = BigInt(await chainNowSeconds()) - 60n;
+      const mark = await buildSendRecord(tx, o.admin, env().adminWallet, "MARK_ISSUER_KEY_COMPROMISED", o.key.id, { compromisedAt }, await signingClock());
+      await finalise(tx, mark.rec.id);
+      const unanchored = await stateAt(tx, f.credentialRowId);
+      return { unanchored, key: await tx.issuerKey.findUniqueOrThrow({ where: { id: o.key.id } }), sealed };
+    });
+    expect(r.key.compromisedAt).not.toBeNull();
+    expect(r.unanchored.state).toBe("INVALID_PROOF");
+    expect(r.unanchored.reasons.map((x) => x.code)).toContain("SIGNER_COMPROMISED");
+  });
+});

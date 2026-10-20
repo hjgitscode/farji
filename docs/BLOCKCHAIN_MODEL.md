@@ -252,7 +252,7 @@ the tree to anchor.
 The contract cannot enforce it (it never sees `issuedAt`). Policy: a signed attestation is valid
 evidence only if its containing root is first anchored within 30 days of its `issuedAt`
 (`issuedAt <= anchoredAt <= issuedAt + 30 days`); Phase 10 derives PENDING before a qualifying anchor
-and INVALID_PROOF for evidence anchored beyond the window. The Phase 9 application warns after 21
+and INVALID_PROOF for evidence anchored beyond the window. (Implemented in Phase 10: `lib/verification`, DOMAIN_MODEL §6.5; the window is inclusive at both ends, applied to the first qualifying anchor, and a credential with no anchor at all stays PENDING.) The Phase 9 application warns after 21
 days and does not BUILD an anchor in which every attestation is already older than 30 days (a batch
 with at least one fresh leaf is still anchorable, with a warning about the stale ones).
 
@@ -333,7 +333,7 @@ StatusChangeAttestation(
   be configured, and every environment uses its own deployment, so signatures cannot be
   replayed across chains, contracts or environments.
 - Signatures are verified server-side (ethers `verifyTypedData`) before acceptance,
-  and again by the verification engine on every evaluation (Phase 10).
+  and again by the verification engine on every evaluation (Phase 10). The Phase 10 engine recomputes the whole signed message from the stored material and requires the recovered signer to equal the recorded wallet.
 - A signature is accepted only if the recovered wallet is an `IssuerKey` of the
   credential's own Organisation that was authorised at `issuedAt`, is still open now,
   and is not compromised (`lib/crypto/keys.ts`). Retiring a key later never invalidates

@@ -3,13 +3,17 @@ import Link from "next/link";
 import { requireCandidate } from "@/lib/auth/guards";
 import { readContent, REQUEST_STATUS_LABEL } from "@/lib/core/claims";
 import { getDb } from "@/lib/database/client";
+import { VerificationStatus } from "@/components/candidate/VerificationStatus";
 import { listCandidateClaims } from "@/server/candidate/claims";
+import { deriveCandidateClaimStates } from "@/server/verification/service";
 
 export const metadata: Metadata = { title: "My records" };
 
 export default async function ClaimsPage() {
   const actor = await requireCandidate("/candidate/claims");
   const claims = await listCandidateClaims(getDb(), actor);
+  // Derived from evidence on every request; nothing about verification is stored.
+  const { available, states } = await deriveCandidateClaimStates(getDb(), actor);
 
   return (
     <section className="space-y-4">
@@ -37,9 +41,12 @@ export default async function ClaimsPage() {
                     {content.organisationName} · {claim.category.toLowerCase()} · version {claim.latestVersion?.versionNumber}
                   </p>
                 </div>
-                <p className="text-sm text-neutral-700">
-                  {latestRequest ? `Request: ${REQUEST_STATUS_LABEL[latestRequest.status] ?? latestRequest.status}` : "No request yet"}
-                </p>
+                <div className="space-y-1 text-right">
+                  <VerificationStatus result={states.get(claim.id)} available={available} />
+                  <p className="text-xs text-neutral-600">
+                    {latestRequest ? `Request: ${REQUEST_STATUS_LABEL[latestRequest.status] ?? latestRequest.status}` : "No request yet"}
+                  </p>
+                </div>
               </li>
             );
           })}

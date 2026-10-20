@@ -8,6 +8,8 @@ import { readContent, REQUEST_STATUS_LABEL } from "@/lib/core/claims";
 import { getDb } from "@/lib/database/client";
 import { getCandidateClaim, listRequestableOrganisations } from "@/server/candidate/claims";
 import { DomainError } from "@/server/candidate/errors";
+import { VerificationStatus } from "@/components/candidate/VerificationStatus";
+import { deriveCandidateClaimStates } from "@/server/verification/service";
 
 export const metadata: Metadata = { title: "Record details" };
 
@@ -31,6 +33,7 @@ export default async function ClaimDetailPage({ params }: { params: Promise<{ cl
   const canRequest =
     !claim.archivedAt && !latest.verificationRequests.some((r) => OPEN.includes(r.status) || r.status === "APPROVED");
   const organisations = canRequest ? await listRequestableOrganisations(getDb(), actor) : [];
+  const { available, states } = await deriveCandidateClaimStates(getDb(), actor, [claim.id]);
 
   return (
     <section className="space-y-6">
@@ -53,6 +56,11 @@ export default async function ClaimDetailPage({ params }: { params: Promise<{ cl
             </Link>
           </p>
         ) : null}
+      </div>
+
+      <div className="space-y-2">
+        <h2 className="text-lg font-semibold">Verification status</h2>
+        <VerificationStatus result={states.get(claim.id)} available={available} detail />
       </div>
 
       <div className="space-y-2">

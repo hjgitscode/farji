@@ -214,6 +214,33 @@ specified in [BLOCKCHAIN_MODEL.md](BLOCKCHAIN_MODEL.md).
   deployment the RPC provider (D18) is a trust assumption of the server's observations. Revocation
   while an Organisation is suspended works on-chain but is blocked in the web app (D32).
 
+## 5e. Verification-state engine (Phase 10)
+
+- **State is derived, never stored.** There is no `isVerified`, score or state column anywhere (a structural
+  test scans the schema); `lib/verification` returns the state as a function of raw evidence, a policy and
+  `now`. The service and loader (`server/verification`) only read, and a structural test forbids any write.
+- **Nothing is trusted because it is stored.** The engine recomputes `credentialId`, content digest, subject
+  commitment, dates, the EIP-712 hash, the recovered signer, the Merkle leaf and fold, every `chainRoot` link
+  and the ProofPulse roots (by replaying the append-only log). `Credential.pipelineStatus`, Organisation status
+  and any single column are never sufficient for a positive state.
+- **Only FINALIZED chain evidence is positive** (D17): CONFIRMED anchors give `PENDING`; a not-yet-final
+  revocation is surfaced as a note and not applied. A key authorisation must itself be FINALIZED (D46).
+- **Organisation scope.** An anchor, signer wallet or revocation belonging to a different Organisation is
+  rejected (`INVALID_PROOF`) or ignored (revocation); a proof from another Organisation's chain never verifies.
+- **Precedence is total** (A pending → B revoked → C invalid proof → D modified → E lifecycle), so a lower rule
+  can never override a higher one; unsigned or self-declared work is never `INVALID_PROOF`.
+- **Compromise** is judged at anchor time (twin of the on-chain `isEvidenceKeyValid`); a later retirement never
+  invalidates evidence. **D7** window is inclusive at both ends and applied to the first qualifying anchor.
+- **Privacy.** A result contains states, timestamps, human-readable reasons and a check list only: never salts,
+  claim content, signatures, nonces, the candidate id, reviewer notes, source-of-truth references or audit
+  metadata (tested against the JSON of results). The loader never selects review decisions, notes or audit rows.
+  A candidate can derive states only for their own claims (`deriveCandidateClaimStates` scopes by `actor.userId`).
+- **Fail-closed configuration.** With no chain id / registry configured the service reports verification
+  unavailable instead of guessing an EIP-712 domain.
+- **Known limits.** The finalised database mirror is the evidence source; a live chain re-read on the public
+  path (key history and revocation) and evidence-watermarked caching are Phase 13/14 work. Per-credential
+  ProofPulse log replay is O(log length); acceptable for the MVP, a snapshot cache is a later optimisation.
+
 ---
 
 ## 6. Authentication

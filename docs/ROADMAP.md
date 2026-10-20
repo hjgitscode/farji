@@ -22,7 +22,7 @@ Rules that apply to every phase are in [../CLAUDE.md](../CLAUDE.md).
 | 7 | CohortProof + dynamic ProofPulse Merkle engines | ✅ Complete (automated verification only; no schema change; anchoring deferred to Phases 8–9) |
 | 8 | Final Solidity contract | ✅ Complete (56 contract tests incl. Solidity ↔ TypeScript golden vectors; Hardhat 2.26.5; Slither not run — Phase 16) |
 | 9 | Real application-to-blockchain integration | ✅ Complete (automated: unit, rollback-only DB and real-local-node integration tests pass; additive migration `txNonce`; no public-testnet deployment yet — Phase 15; no browser-wallet click-through yet) |
-| 10 | Verification/state engine | ⬜ Not started |
+| 10 | Verification/state engine | ✅ Complete (automated: 83 new unit tests, 19 new rollback-only DB tests and 3 new real-local-chain journeys pass; no schema change; no live MetaMask / public-testnet verification) |
 | 11 | Candidate professional UI | ⬜ Not started |
 | 12 | Issuer/admin UI | ⬜ Not started |
 | 13 | Public profile and verification UX | ⬜ Not started |
@@ -219,6 +219,19 @@ Rules that apply to every phase are in [../CLAUDE.md](../CLAUDE.md).
 - **Exit:** table-driven tests for every state and every precedence rule; tamper of
   signed evidence → `INVALID_PROOF`; unsigned/self-declared claims never `INVALID_PROOF`;
   no positive on-chain state before confirmation.
+- **Delivered (see D53–D59):** pure `lib/verification` (`types`, `evidence`, `permanent`, `expiring`,
+  `continuing`, `precedence`, `derive`, `labels`) implementing DOMAIN_MODEL §6.1 A–E over raw evidence, with
+  `reasons[]`, a full `checks[]` list and an evidence summary; read-only `server/verification` (loader + service:
+  `deriveStateForCredential`, `deriveCandidateClaimStates`); the candidate record pages show the derived state,
+  reasons and lifecycle timing. No schema change. Tests: table-driven engine tests over REAL signed, Merkle-anchored
+  evidence (every state, every precedence rule, every tamper), structural tests (purity, nothing stored, read-only,
+  no private data), rollback-only DB tests over services-produced evidence, and real-local-node journeys
+  (PENDING until FINALIZED → PERMANENT_VALID → REVOKED; CURRENTLY_ATTESTED → STALE → restored → ENDED; key
+  compromised before anchoring → INVALID_PROOF).
+- **Not done (deferred):** caching with an evidence watermark and the proof-bundle export format (Phase 13); a
+  live chain re-read of key history / revocation on the public verification path (the finalised mirror is the
+  evidence source; Phase 13); a secondary "an earlier version was verified" note (Phase 11/13 UI); public
+  `/verify` and profile pages (Phase 13).
 
 ## Phase 11 — Candidate professional UI
 - **Goal:** Candidate experience: profile editor, experience/education/certifications,
@@ -315,6 +328,13 @@ Rules that apply to every phase are in [../CLAUDE.md](../CLAUDE.md).
 | D50 | Finality and the mirror | CONFIRMED = mined (status 1), tracking only. FINALIZED = block at/under the Ethereum `finalized` tag (Sepolia/mainnet) or `depth:N` (local development `depth:0`, integration tests `depth:2`). Organisation status, IssuerKey, Anchor, Revocation and Credential ANCHORED are written **only** at FINALIZED, in the same database transaction. A reorg before finality returns the transaction to PENDING; nothing needs undoing. |
 | D51 | D7 `maxAnchorDelay` | **30 days** (decided; see BLOCKCHAIN_MODEL §8.4a). Not enforceable by the contract; the app warns after 21 days and refuses to build an anchor in which every attestation is older than 30 days; Phase 10 derives PENDING/INVALID_PROOF. |
 | D52 | Sync, governance and suspension | Recorded-transaction-driven sync plus an admin range rescan (no cursor table; only replacements of recorded transactions are adopted). Admin and issuer authority never overlap on-chain. The app's issuer access follows D32, so while an Organisation is SUSPENDED the web app blocks anchoring and revocation even though the contract still permits revocation. A wallet proof of possession binds `operatorMemberId`. Pages are minimal (polish: Phase 12). |
+| D53 | Verification engine architecture | Pure `lib/verification` derives a state from RAW evidence + policy + `now` and recomputes every hash, signature, Merkle fold and chain-root link itself; `server/verification` only reads and maps rows (per-call cache of anchors and update logs). Nothing is stored (no verified flag, score or state column; structural tests) and the state is recomputed per request. Caching with an evidence watermark, the proof-bundle export and a live chain re-read on the public path are deferred (Phases 13/14). |
+| D54 | Anchor evidence rules | Only FINALIZED chain evidence is positive; a CONFIRMED anchor gives PENDING and a CONFIRMED revocation is noted, not applied. The anchor must belong to the credential's own Organisation and chain, carry the sealed root / replayed root, and the Organisation's attestation chain is recomputed from epoch 1: a missing earlier epoch = not yet synchronised (PENDING), a wrong formula or link = INVALID_PROOF. |
+| D55 | Supersession (MODIFIED) | The older credential is MODIFIED when the credential naming it in `supersedesCredentialId` has a verifying attestation (same Organisation, signed message names the older `credentialId`, not earlier, wallet authorised at its `issuedAt` with a FINALIZED authorisation and never compromised, all hashes recompute). The successor need **not** be anchored: supersession is never positive, and waiting would keep a replaced record badged for up to the anchor window. An unverifiable successor is ignored. |
+| D56 | D7 window application | `issuedAt <= anchoredAt <= issuedAt + 30 days`, inclusive at both ends, on the first qualifying anchor (CONTINUING: the first epoch covering the leaf). Outside it = INVALID_PROOF; no anchor at all = PENDING (with a note once the window has passed) because absence of evidence is not proof of invalidity. |
+| D57 | Compromise at anchor time | `wasKeyValidForEvidence`: authorised at `issuedAt` and anchored strictly before `compromisedAt`. Unanchored evidence is judged as anchored now, so an already-compromised key can never produce qualifying evidence (INVALID_PROOF); later retirement never matters. |
+| D58 | Negative evidence | A valid signed ENDED status change is effective at once (before any epoch, regardless of freshness) and never implies Revocation; an invalid one is ignored and noted. An EXPIRING credential must first satisfy the full qualifying evidence path (no finalized anchor → PENDING, even past `validUntil`; invalid evidence → INVALID_PROOF); only then `now < validUntil` → VERIFIED and `now >= validUntil` → EXPIRED. EXPIRED is never derived from a not-yet-anchored credential; REVOKED and MODIFIED outrank it. |
+| D59 | ProofPulse freshness | `now <= anchoredAt + Organisation.pulseFreshnessDays` (inclusive) for the most recent FINALIZED epoch whose replayed root proves the leaf ACTIVE; stale otherwise; epochs are proven by log replay so historical roots stay verifiable. |
 | D28 | Database target and identity keys | Supabase-hosted PostgreSQL via Prisma 7 (driver adapter `pg`). UUID internal keys (v7); `User.authUserId` links Supabase Auth; email is not duplicated; current ClaimVersion = highest `versionNumber`; one Credential per ClaimVersion. |
 | D22 | Positive state + anchoring | APPROVED / SIGNED / QUEUED_FOR_ANCHOR are operational; an on-chain positive verification is claimed only after the relevant anchor meets the confirmation/finality policy. |
 

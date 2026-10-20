@@ -408,7 +408,8 @@ the full picture, not only the top state.
        `anchoredAt >= now − pulseFreshnessDays` → `CURRENTLY_ATTESTED`;
      - else, a confirmed epoch has proven the leaf ACTIVE before → `STALE_NO_RECENT_ATTESTATION`;
      - else (never yet confirmed) → `PENDING`.
-   - EXPIRING → `now >= validUntil` ? `EXPIRED` : (confirmed ? `VERIFIED` : `PENDING`).
+   - EXPIRING → not confirmed ? `PENDING` : (`now >= validUntil` ? `EXPIRED` : `VERIFIED`). Expiry is evaluated only
+     after the same qualifying evidence a verified credential needs.
 
 Notes:
 - A StatusChangeAttestation is *valid* when its signature recovers correctly, its
@@ -461,6 +462,55 @@ Derived states may be cached for performance. A cache is never the source of tru
 must carry the evidence watermark it was computed from (latest block, latest
 attestation id), and must be invalidated on any new evidence. No column such as
 `isVerified` may be introduced.
+
+### 6.5 As built (Phase 10, ROADMAP D53–D59)
+
+`lib/verification` (pure; types, evidence, permanent, expiring, continuing, precedence, derive, labels)
+implements §6.1 exactly. The engine receives RAW evidence rows, a policy (`maxAnchorDelayMs`, the
+Organisation's `pulseFreshnessDays`, the EIP-712 domain) and `now`, and **recomputes** every identifier,
+digest, EIP-712 hash, signature recovery, Merkle fold and chain-root link itself. No stored flag or
+`pipelineStatus` is proof of anything; the only use of workflow status is to notice a credential recorded
+as signed whose attestation is missing (`INVALID_PROOF`). Nothing about verification is stored.
+
+- **Evidence qualifies only when FINALIZED** (D17): an Anchor whose transaction is merely CONFIRMED yields
+  `PENDING`; a mined-but-not-final Revocation is noted and not applied.
+- **Anchor path (PERMANENT / EXPIRING):** leaf rebuilt from the signed material equals the stored leaf; the
+  stored sibling path folds to the batch root; a FINALIZED COHORT anchor **of the same Organisation** carries that
+  root and leaf count; the Organisation's COHORT chain is recomputed from epoch 1 (a missing earlier epoch is
+  "not yet synchronised" → `PENDING`; a wrong formula or link → `INVALID_PROOF`).
+- **D7:** `issuedAt <= anchoredAt <= issuedAt + maxAnchorDelay` for the first qualifying anchor, inclusive at
+  both ends; outside → `INVALID_PROOF`. With no anchor at all the state stays `PENDING` (a note says when the
+  window has passed): absence of evidence is not proof of invalidity.
+- **Compromise at anchor time** (`wasKeyValidForEvidence`): valid iff the key was authorised at `issuedAt` and, if
+  ever compromised, the evidence was anchored **strictly before** `compromisedAt`. Evidence not yet anchored is
+  judged as if anchored now, so a key already compromised can never produce qualifying evidence
+  (`INVALID_PROOF`). Retiring a key later never invalidates evidence.
+- **CONTINUING:** the engine replays the append-only `ProofPulseUpdate` log into a sparse tree (every recorded
+  root must be reproduced) and proves the leaf against **each** FINALIZED PROOF_PULSE anchor whose `rootSeq`
+  covers it, so historical roots stay verifiable after the tree changed. The FIRST covering root must satisfy
+  the D7 window. `CURRENTLY_ATTESTED` iff the most recent FINALIZED epoch whose root proves the leaf ACTIVE has
+  `now <= anchoredAt + pulseFreshnessDays` (inclusive: exactly at the boundary is still current; one second
+  later is `STALE_NO_RECENT_ATTESTATION`). Time passing never touches the tree.
+- **ENDED** is effective as soon as a valid signed ENDED `StatusChangeAttestation` verifies (signature, same
+  Organisation, wallet authorised and not compromised at its signed time, `statusSeq` 2, not before the
+  credential): before the next epoch is anchored, and regardless of freshness. An invalid or forged status change is
+  ignored (noted) and can never upgrade a state. ENDED never produces or implies a Revocation.
+- **EXPIRING:** the same qualifying evidence path as PERMANENT is required **before** expiry is evaluated: no
+  qualifying FINALIZED anchor → `PENDING` (before, at or after `validUntil`); invalid evidence (including a late
+  anchor) → `INVALID_PROOF`; valid evidence → `VERIFIED` if `now < validUntil`, else `EXPIRED`. `EXPIRED` is never
+  derived from a signed but not yet sufficiently anchored credential; REVOKED and MODIFIED still outrank it.
+- **MODIFIED (supersession rule, D55):** a credential is superseded when another names it in
+  `supersedesCredentialId` **and that newer credential's own attestation verifies at signature level**: same
+  Organisation; its signed message names this credential's `credentialId` as predecessor; not earlier than this one;
+  signed by a wallet authorised at its `issuedAt` whose authorisation is FINALIZED and which was never marked
+  compromised; all hashes recompute. It does **not** need to be anchored: supersession is never a positive state,
+  and waiting for an anchor would leave a replaced record showing a positive badge for up to the anchor window.
+  A successor that does not verify is ignored (noted) and cannot change the older state.
+- **Reasons and checks:** every result carries human-readable `reasons[]` and the full `checks[]` list. Results
+  never contain salts, claim content, signatures, nonces, reviewer notes, source-of-truth references or audit data.
+- **Not in Phase 10:** a live chain re-read of `isIssuerAuthorisedAt` / revocation on the public path (the
+  finalised mirror is used; the live read is a Phase 13 public-verifier concern), caching with an evidence
+  watermark, and the proof-bundle export format.
 
 ---
 

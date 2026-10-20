@@ -245,6 +245,11 @@ Not required:
   `pulseFreshnessDays` (configurable; initial default 45); otherwise
   `STALE_NO_RECENT_ATTESTATION` ([DOMAIN_MODEL.md](DOMAIN_MODEL.md) §6.1). The value
   is supplied to the engine as policy input, not hardcoded.
+- **As built (Phase 10):** freshness is `now <= anchoredAt + pulseFreshnessDays` for the most recent FINALIZED epoch
+  whose replayed root proves the leaf ACTIVE (inclusive at the boundary), using the Organisation's own configured
+  value. The verification engine proves the leaf against every covering epoch by replaying the update log, so a
+  historical epoch stays verifiable after later changes; the first covering epoch must be anchored within
+  `maxAnchorDelay` (30 days) of the credential's `issuedAt`. Evaluating a later time performs no tree work.
 - A recommended cadence (e.g. monthly) is a reminder to the Issuer, not a rebuild.
   A calendar month changing never rebuilds or recomputes the tree.
 
