@@ -67,7 +67,7 @@ describe("nothing about verification is stored", () => {
   it("candidate pages show the derived state and never the pipeline status as a verification", () => {
     for (const f of ["app/candidate/claims/page.tsx", "app/candidate/claims/[claimId]/page.tsx"]) {
       const src = code(f);
-      expect(src, f).toContain("VerificationStatus");
+      expect(src, f).toMatch(/VerificationStatus|RecordCard/);
       expect(src, f).not.toMatch(/pipelineStatus/);
     }
   });

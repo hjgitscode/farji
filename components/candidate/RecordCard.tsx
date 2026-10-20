@@ -1,0 +1,49 @@
+import Link from "next/link";
+import { Badge, Card } from "@/components/ui";
+import { CATEGORY_LABEL, formatDate, formatPeriod, LIFECYCLE_LABEL } from "@/lib/format";
+import { presentState } from "@/lib/verification/present";
+import { StatusBadge } from "@/components/ui";
+import type { CandidateRecord } from "@/server/verification/records";
+
+const VISIBILITY_LABEL = { PRIVATE: "Private", UNLISTED: "Shared by link", PUBLIC: "On public profile" } as const;
+
+/** One professional record: what it says, its DERIVED state in plain words, and what to do next. */
+export function RecordCard({ record, available }: { record: CandidateRecord; available: boolean }) {
+  const c = record.current.content;
+  const lifecycle = record.result?.lifecycleType ?? record.current.proposedLifecycleType;
+  const current = lifecycle === "CONTINUING" && record.result?.state !== "ENDED";
+  const p = record.result ? presentState(record.result) : null;
+  return (
+    <Card as="li" className="space-y-2">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <Link href={`/candidate/claims/${record.claimId}`} className="text-base font-semibold text-neutral-900 hover:underline">
+            {c.title || "Untitled record"}
+          </Link>
+          <p className="text-sm text-neutral-700">
+            {c.organisationName} · {CATEGORY_LABEL[record.category] ?? record.category}
+          </p>
+          <p className="text-xs text-neutral-500">
+            {formatPeriod(c.startDate, c.endDate, current)}
+            {c.expiryDate ? ` · expires ${formatDate(c.expiryDate)}` : ""}
+            {` · ${LIFECYCLE_LABEL[lifecycle] ?? ""}`}
+          </p>
+        </div>
+        <Badge tone={record.visibility === "PRIVATE" ? "neutral" : "current"}>{VISIBILITY_LABEL[record.visibility]}</Badge>
+      </div>
+      {p ? (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <StatusBadge presentation={p} />
+          <span className="text-neutral-800">{p.headline}</span>
+        </div>
+      ) : !available ? (
+        <p className="text-sm text-neutral-600">Verification status is unavailable right now.</p>
+      ) : null}
+      {record.earlierVerified ? (
+        <p className="text-sm text-neutral-700">
+          An earlier version of this record was verified{record.earlierVerified.organisationName ? ` by ${record.earlierVerified.organisationName}` : ""}. The current version is not verified yet.
+        </p>
+      ) : null}
+    </Card>
+  );
+}

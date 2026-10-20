@@ -36,7 +36,7 @@ export function ClaimForm({ action, submitLabel, initial = {}, fixedCategory }: 
         {label}
       </label>
       {opts.textarea ? (
-        <textarea id={name} name={name} defaultValue={initial[name] ?? ""} rows={3} className="w-full rounded border border-neutral-300 px-3 py-2" />
+        <textarea id={name} name={name} defaultValue={initial[name] ?? ""} rows={3} className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm placeholder:text-neutral-400 focus:border-neutral-900 focus:outline-none focus:ring-1 focus:ring-neutral-900" />
       ) : (
         <input
           id={name}
@@ -45,11 +45,11 @@ export function ClaimForm({ action, submitLabel, initial = {}, fixedCategory }: 
           defaultValue={initial[name] ?? ""}
           required={opts.required}
           aria-invalid={err(name) ? true : undefined}
-          className="w-full rounded border border-neutral-300 px-3 py-2"
+          className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm placeholder:text-neutral-400 focus:border-neutral-900 focus:outline-none focus:ring-1 focus:ring-neutral-900"
         />
       )}
       {err(name) ? (
-        <p role="alert" className="text-sm text-red-700">
+        <p role="alert" className="text-sm text-rose-700">
           {err(name)}
         </p>
       ) : null}
@@ -65,14 +65,14 @@ export function ClaimForm({ action, submitLabel, initial = {}, fixedCategory }: 
           <label htmlFor="category" className="block text-sm font-medium">
             Category
           </label>
-          <select id="category" name="category" defaultValue={initial.category ?? "EXPERIENCE"} className="w-full rounded border border-neutral-300 px-3 py-2">
+          <select id="category" name="category" defaultValue={initial.category ?? "EXPERIENCE"} className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm placeholder:text-neutral-400 focus:border-neutral-900 focus:outline-none focus:ring-1 focus:ring-neutral-900">
             {CATEGORIES.map(([v, l]) => (
               <option key={v} value={v}>
                 {l}
               </option>
             ))}
           </select>
-          {err("category") ? <p role="alert" className="text-sm text-red-700">{err("category")}</p> : null}
+          {err("category") ? <p role="alert" className="text-sm text-rose-700">{err("category")}</p> : null}
         </div>
       )}
 
@@ -80,7 +80,7 @@ export function ClaimForm({ action, submitLabel, initial = {}, fixedCategory }: 
         <label htmlFor="lifecycleType" className="block text-sm font-medium">
           Type of record
         </label>
-        <select id="lifecycleType" name="lifecycleType" defaultValue={initial.lifecycleType ?? "PERMANENT"} className="w-full rounded border border-neutral-300 px-3 py-2">
+        <select id="lifecycleType" name="lifecycleType" defaultValue={initial.lifecycleType ?? "PERMANENT"} className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm placeholder:text-neutral-400 focus:border-neutral-900 focus:outline-none focus:ring-1 focus:ring-neutral-900">
           {LIFECYCLES.map(([v, l]) => (
             <option key={v} value={v}>
               {l}
@@ -90,7 +90,7 @@ export function ClaimForm({ action, submitLabel, initial = {}, fixedCategory }: 
         <p className="text-xs text-neutral-600">
           Completed records need an end date. Current records have none. Expiring records need an expiry date.
         </p>
-        {err("lifecycleType") ? <p role="alert" className="text-sm text-red-700">{err("lifecycleType")}</p> : null}
+        {err("lifecycleType") ? <p role="alert" className="text-sm text-rose-700">{err("lifecycleType")}</p> : null}
       </div>
 
       {field("title", "Title", { required: true })}
@@ -104,12 +104,12 @@ export function ClaimForm({ action, submitLabel, initial = {}, fixedCategory }: 
       {field("description", "Description", { textarea: true })}
 
       {state.error ? (
-        <p role="alert" className="text-sm text-red-700">
+        <p role="alert" className="text-sm text-rose-700">
           {state.error}
         </p>
       ) : null}
 
-      <button type="submit" disabled={pending} className="rounded bg-neutral-900 px-4 py-2 text-white disabled:opacity-60">
+      <button type="submit" disabled={pending} className="inline-flex items-center justify-center rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
         {pending ? "Saving…" : submitLabel}
       </button>
     </form>

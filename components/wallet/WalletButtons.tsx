@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { btn } from "@/components/ui";
 import { connectWallet, sendTransaction, signTypedData, walletMessage } from "./wallet";
 
 // Thin client components around the server actions. Every value that matters (typed data, calldata,
@@ -40,13 +41,13 @@ function useRunner() {
 function Status({ message, error }: { message: string | null; error: string | null }) {
   return (
     <>
-      {message ? <p role="status" className="text-sm text-green-800">{message}</p> : null}
-      {error ? <p role="alert" className="text-sm text-red-700">{error}</p> : null}
+      {message ? <p role="status" className="text-sm text-emerald-800">{message}</p> : null}
+      {error ? <p role="alert" className="text-sm text-rose-700">{error}</p> : null}
     </>
   );
 }
 
-const button = "rounded bg-neutral-900 px-3 py-1.5 text-sm text-white disabled:opacity-60";
+const button = btn.primary;
 
 /** Server builds the transaction -> the connected wallet broadcasts it -> the server records the hash. */
 export function TxButton({ label, chainId, disabled, build, record }: Props & { build: () => Promise<BuildResult>; record: (txHash: string) => Promise<RecordResult> }) {
@@ -70,7 +71,7 @@ export function TxButton({ label, chainId, disabled, build, record }: Props & { 
           })
         }
       >
-        {busy ? "Waiting for the wallet…" : label}
+        {busy ? "Waiting for your wallet…" : label}
       </button>
       <Status message={message} error={error} />
     </div>
@@ -107,7 +108,7 @@ export function SignButton({
           })
         }
       >
-        {busy ? "Waiting for the wallet…" : label}
+        {busy ? "Waiting for your wallet…" : label}
       </button>
       <Status message={message} error={error} />
     </div>
@@ -121,7 +122,7 @@ export function ActionButton({ label, disabled, action }: { label: string; disab
     <div className="space-y-1">
       <button
         type="button"
-        className="rounded border border-neutral-900 px-3 py-1.5 text-sm disabled:opacity-60"
+        className={btn.secondary}
         disabled={busy || disabled}
         onClick={() =>
           run(async () => {

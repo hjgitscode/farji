@@ -512,6 +512,28 @@ as signed whose attestation is missing (`INVALID_PROOF`). Nothing about verifica
   finalised mirror is used; the live read is a Phase 13 public-verifier concern), caching with an evidence
   watermark, and the proof-bundle export format.
 
+### 6.6 Product layer (Phases 11-13, ROADMAP D60-D66)
+
+- **Visibility (existing schema, no migration).** `Profile.visibility` (PUBLIC / UNLISTED / PRIVATE) decides whether the profile
+  page `/p/{handle}` resolves at all (PRIVATE = it does not exist; UNLISTED resolves by link and is not indexed).
+  `Claim.visibility` decides each record: PUBLIC records are listed on the profile and their verifier link works; UNLISTED
+  records are not listed but their verifier link works for whoever holds it; PRIVATE records appear nowhere. Everything defaults
+  to PRIVATE and only the owner can change it. The public identity is `Profile.handle` - never a user id or auth id.
+- **Imported data is SELF_DECLARED.** Importing from LinkedIn or any other professional profile (pasted text or a CSV the person
+  exported) only proposes records. A record exists only after the candidate previews, edits, selects and confirms it, and it is
+  then created by the Phase 4 `createClaim` service as ClaimVersion 1 with PRIVATE visibility. Import never creates a Credential,
+  Attestation, Anchor, IssuerKey, Revocation or Organisation, and never attaches a name to a FARJI organisation by itself. FARJI
+  has no LinkedIn API access or OAuth and does not scrape: it reads text the person supplies.
+- **Public groups.** A public profile separates "Verified by organisations" (PERMANENT_VALID, VERIFIED, CURRENTLY_ATTESTED,
+  STALE_NO_RECENT_ATTESTATION, ENDED, EXPIRED) from "Self-declared" (SELF_DECLARED, PENDING) and "Records with a status to be aware
+  of" (REVOKED, INVALID_PROOF, MODIFIED). Rejections are never shown (they are SELF_DECLARED).
+- **Earlier-version note.** If the current ClaimVersion is SELF_DECLARED or PENDING and an earlier version's credential derived a
+  verified-family state, the candidate sees "An earlier version of this record was verified"; the new version is never badged as
+  verified. Version history shows each version's own derived state.
+- **Wording.** The default UI uses plain labels (Verified historical credential, Currently confirmed, Needs refresh, Verification
+  pending, Expired, Ended, Revoked, Modified, Added by you). Hashes, proofs, contract and transaction details appear only behind
+  "View verification details". The public verifier and the evidence bundle always use the Phase 10 derivation.
+
 ---
 
 ## 7. Versioning and issuance rules

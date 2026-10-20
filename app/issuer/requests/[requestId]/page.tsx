@@ -3,6 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { approveRequestAction, rejectRequestAction } from "@/app/issuer/actions";
 import { ApproveForm, RejectForm } from "@/components/issuer/ReviewForms";
+import { Alert, btn, Card, Facts, PageHeader, Section } from "@/components/ui";
+import { CATEGORY_LABEL, formatDate, LIFECYCLE_LABEL } from "@/lib/format";
 import { requireIssuer } from "@/lib/auth/guards";
 import { readContent, REQUEST_STATUS_LABEL } from "@/lib/core/claims";
 import { getDb } from "@/lib/database/client";
@@ -29,62 +31,57 @@ export default async function IssuerRequestPage({ params }: { params: Promise<{ 
   const reviewable = OPEN.includes(request.status) && v.isCurrentVersion && !request.isOwnClaim;
 
   return (
-    <section className="space-y-6">
+    <div className="space-y-8">
       <p>
-        <Link href="/issuer/requests" className="text-sm underline">
+        <Link href="/issuer/requests" className={btn.link}>
           ← All requests
         </Link>
       </p>
+      <PageHeader title={c.title ?? "Request"} description={`${c.organisationName ?? ""} · ${CATEGORY_LABEL[v.category] ?? v.category} · ${LIFECYCLE_LABEL[v.proposedLifecycleType] ?? ""} · version ${v.versionNumber}`} />
 
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold">{c.title}</h1>
-        <p className="text-neutral-700">
-          {c.organisationName} · {v.category.toLowerCase()} · {v.proposedLifecycleType.toLowerCase()} · version {v.versionNumber}
-        </p>
-        <p className="text-sm text-neutral-600">
-          {c.startDate}
-          {c.endDate ? ` → ${c.endDate}` : ""}
-          {c.expiryDate ? ` · expires ${c.expiryDate}` : ""}
-        </p>
-        {c.description ? <p className="text-sm">{c.description}</p> : null}
-        {c.fieldOfStudy ? <p className="text-sm">Field of study: {c.fieldOfStudy}</p> : null}
-        {c.credentialNumber ? <p className="text-sm">Credential number: {c.credentialNumber}</p> : null}
-        {c.location ? <p className="text-sm">Location: {c.location}</p> : null}
-        <p className="text-sm text-neutral-600">
-          Submitted {request.submittedAt.toISOString().slice(0, 10)} · Status: {REQUEST_STATUS_LABEL[request.status] ?? request.status}
-        </p>
-        {request.institutionalIdentifier ? <p className="text-sm">Candidate identifier: {request.institutionalIdentifier}</p> : null}
-        {request.candidateNote ? <p className="text-sm">Candidate note: {request.candidateNote}</p> : null}
-      </div>
+      <Card className="space-y-3">
+        <h2 className="font-semibold">What the candidate submitted</h2>
+        <Facts
+          items={[
+            ["Started", formatDate(c.startDate)],
+            ["Ended", formatDate(c.endDate)],
+            ["Expires", formatDate(c.expiryDate)],
+            ["Location", c.location],
+            ["Field of study", c.fieldOfStudy],
+            ["Credential number", c.credentialNumber],
+            ["Description", c.description],
+            ["Submitted", formatDate(request.submittedAt)],
+            ["Status", REQUEST_STATUS_LABEL[request.status] ?? request.status],
+            ["Candidate identifier", request.institutionalIdentifier],
+            ["Candidate note", request.candidateNote],
+          ]}
+        />
+      </Card>
 
       {request.decision ? (
-        <div className="space-y-1">
-          <h2 className="text-lg font-semibold">Decision</h2>
+        <Section title="Decision">
           <p className="text-sm">
-            {request.decision.decision === "APPROVE" ? "Approved" : "Rejected"} on {request.decision.decidedAt.toISOString().slice(0, 10)}
+            {request.decision.decision === "APPROVE" ? "Approved" : "Rejected"} on {formatDate(request.decision.decidedAt)}
             {request.decision.rejectionReason ? ` (${request.decision.rejectionReason.toLowerCase().replaceAll("_", " ")})` : ""}
           </p>
-          {request.decision.sourceOfTruthReference ? <p className="text-sm">Reference: {request.decision.sourceOfTruthReference}</p> : null}
-          {request.decision.notes ? <p className="text-sm">Notes: {request.decision.notes}</p> : null}
-          {v.credential ? (
-            <p className="text-sm text-neutral-700">
-              Credential prepared ({v.credential.lifecycleType.toLowerCase()}); signing is the next step and has not happened yet.
-            </p>
-          ) : null}
-        </div>
+          <Facts items={[["Reference", request.decision.sourceOfTruthReference], ["Internal notes", request.decision.notes]]} />
+          {v.credential ? <p className="text-sm text-neutral-700">Approved. The next step is signing, under Credentials.</p> : null}
+        </Section>
       ) : null}
 
       {reviewable ? (
-        <div className="space-y-6">
-          <h2 className="text-lg font-semibold">Review</h2>
-          <ApproveForm action={approveRequestAction.bind(null, request.id)} />
-          <RejectForm action={rejectRequestAction.bind(null, request.id)} />
-        </div>
+        <Section title="Your decision">
+          <Alert tone="info" title="Confirm from your own records">
+            By approving, your organisation attests that this record matches your own records. The approval is then signed with your organisation&apos;s wallet. Rejecting keeps the request on file and tells the candidate which part did not match; the record remains theirs, as self-declared.
+          </Alert>
+          <div className="grid gap-6 lg:grid-cols-2">
+            <ApproveForm action={approveRequestAction.bind(null, request.id)} />
+            <RejectForm action={rejectRequestAction.bind(null, request.id)} />
+          </div>
+        </Section>
       ) : OPEN.includes(request.status) ? (
-        <p className="text-sm text-neutral-700">
-          {request.isOwnClaim ? "You cannot review your own claim." : "This request is for a version that has been replaced and can no longer be reviewed."}
-        </p>
+        <Alert tone="warning">{request.isOwnClaim ? "You cannot review your own record." : "This request is for a version that has since been replaced and can no longer be reviewed."}</Alert>
       ) : null}
-    </section>
+    </div>
   );
 }

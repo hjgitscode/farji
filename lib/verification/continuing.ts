@@ -23,10 +23,10 @@ import type { AnchorEvidence, CredentialEvidence, PulseEvidence, SignedMaterial,
 // root equals the replayed root and the leaf folds into it. Nothing here rebuilds or mutates a tree because
 // time passed: freshness is only a comparison of an anchor timestamp with `now`.
 
-type Snapshot = { root: string; leafHash: string; siblings: string[]; last: PulseEvidence["log"][number] | null };
+export type Snapshot = { root: string; leafHash: string; siblings: string[]; last: PulseEvidence["log"][number] | null };
 
 /** One pass over the log, capturing the root, the leaf and its sibling path at each requested rootSeq. */
-function snapshots(depth: number, log: PulseEvidence["log"], leafIndex: number, rootSeqs: number[]): Map<number, Snapshot> {
+export function pulseSnapshots(depth: number, log: PulseEvidence["log"], leafIndex: number, rootSeqs: number[]): Map<number, Snapshot> {
   const wanted = new Set(rootSeqs);
   const tree = new SparsePulseTree(depth);
   const out = new Map<number, Snapshot>();
@@ -93,7 +93,7 @@ export function assessPulsePath(ev: CredentialEvidence, m: SignedMaterial, polic
 
   let snaps: Map<number, Snapshot>;
   try {
-    snaps = snapshots(pulse.depth, pulse.log, leafIndex, final.map((a) => a.rootSeq!));
+    snaps = pulseSnapshots(pulse.depth, pulse.log, leafIndex, final.map((a) => a.rootSeq!));
   } catch {
     record(c, [{ id: "PULSE_HISTORY", ok: false, detail: "The ProofPulse update log does not reproduce its recorded roots.", reason: "PULSE_HISTORY_INCONSISTENT" }]);
     return { status: "INVALID" };

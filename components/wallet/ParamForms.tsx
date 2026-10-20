@@ -2,14 +2,16 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { btn } from "@/components/ui";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import type { AcceptResult, BuildResult, PrepareResult, RecordResult } from "./WalletButtons";
 import { connectWallet, sendTransaction, signTypedData, walletMessage } from "./wallet";
 
 // Wallet forms that take ONE free parameter from the person (a wallet address, a date, a reason).
 // Everything else about the transaction/signature is built on the server.
 
-const input = "rounded border border-neutral-300 px-2 py-1.5 text-sm";
-const button = "rounded bg-neutral-900 px-3 py-1.5 text-sm text-white disabled:opacity-60";
+const input = "rounded-lg border border-neutral-300 bg-white px-2 py-1.5 text-sm";
+const button = btn.primary;
 
 function useRun() {
   const router = useRouter();
@@ -35,8 +37,8 @@ function useRun() {
 function Status({ message, error }: { message: string | null; error: string | null }) {
   return (
     <>
-      {message ? <p role="status" className="text-sm text-green-800">{message}</p> : null}
-      {error ? <p role="alert" className="text-sm text-red-700">{error}</p> : null}
+      {message ? <p role="status" className="text-sm text-emerald-800">{message}</p> : null}
+      {error ? <p role="alert" className="text-sm text-rose-700">{error}</p> : null}
     </>
   );
 }
@@ -53,10 +55,13 @@ export function ParamTxButton({
   options,
   build,
   record,
+  confirm,
 }: {
   label: string;
   chainId: string;
   paramName: string;
+  /** When set, the person must confirm in a dialog first (used for exceptional or destructive actions). */
+  confirm?: { title: string; body: string; danger?: boolean };
   placeholder?: string;
   kind?: "text" | "datetime" | "choice";
   options?: Option[];
@@ -65,6 +70,19 @@ export function ParamTxButton({
 }) {
   const { busy, message, error, run } = useRun();
   const [value, setValue] = useState(options?.[0]?.value ?? "");
+  const go = () =>
+    run(async () => {
+              // A date-time is converted to unix seconds here; the server re-validates every bound.
+              const param = kind === "datetime" ? String(Math.floor(new Date(value).getTime() / 1000)) : value.trim();
+              const account = await connectWallet(chainId);
+              const built = await build({ [paramName]: param });
+              if (!built.ok) throw new Error(built.error);
+              if (built.warnings.length > 0 && !window.confirm(built.warnings.join("\n\n"))) throw new Error("Cancelled.");
+              const hash = await sendTransaction(account, built);
+              const recorded = await record(hash);
+              if (!recorded.ok) throw new Error(recorded.error);
+              return recorded.message;
+            });
   return (
     <div className="space-y-1">
       <div className="flex flex-wrap items-center gap-2">
@@ -79,27 +97,13 @@ export function ParamTxButton({
         ) : (
           <input aria-label={paramName} className={input} type={kind === "datetime" ? "datetime-local" : "text"} placeholder={placeholder} value={value} onChange={(e) => setValue(e.target.value)} />
         )}
-        <button
-          type="button"
-          className={button}
-          disabled={busy || !value}
-          onClick={() =>
-            run(async () => {
-              // A date-time is converted to unix seconds here; the server re-validates every bound.
-              const param = kind === "datetime" ? String(Math.floor(new Date(value).getTime() / 1000)) : value.trim();
-              const account = await connectWallet(chainId);
-              const built = await build({ [paramName]: param });
-              if (!built.ok) throw new Error(built.error);
-              if (built.warnings.length > 0 && !window.confirm(built.warnings.join("\n\n"))) throw new Error("Cancelled.");
-              const hash = await sendTransaction(account, built);
-              const recorded = await record(hash);
-              if (!recorded.ok) throw new Error(recorded.error);
-              return recorded.message;
-            })
-          }
-        >
-          {busy ? "Waiting for the wallet…" : label}
-        </button>
+        {confirm ? (
+          <ConfirmDialog trigger={busy ? "Waiting for your wallet…" : label} title={confirm.title} body={confirm.body} confirmLabel={label} tone={confirm.danger ? "danger" : "primary"} disabled={busy || !value} onConfirm={go} />
+        ) : (
+          <button type="button" className={button} disabled={busy || !value} onClick={go}>
+            {busy ? "Waiting for your wallet…" : label}
+          </button>
+        )}
       </div>
       <Status message={message} error={error} />
     </div>
@@ -122,11 +126,13 @@ export function EndRelationshipButton({
     <div className="space-y-1">
       <div className="flex flex-wrap items-center gap-2">
         <input aria-label="End date" className={input} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-        <button
-          type="button"
-          className={button}
+        <ConfirmDialog
+          trigger={busy ? "Waiting for your wallet…" : "End relationship"}
+          title="End this relationship?"
+          body={`You are recording that this relationship ended on ${date || "the chosen date"}. The record stays on the person's profile as ended; it is not a revocation and nothing is deleted. This cannot be undone.`}
+          confirmLabel="Sign and end relationship"
           disabled={busy || !date}
-          onClick={() =>
+          onConfirm={() =>
             run(async () => {
               const account = await connectWallet(chainId);
               const prep = await prepare(date);
@@ -137,9 +143,7 @@ export function EndRelationshipButton({
               return done.message;
             })
           }
-        >
-          {busy ? "Waiting for the wallet…" : "End relationship"}
-        </button>
+        />
       </div>
       <Status message={message} error={error} />
     </div>

@@ -17,7 +17,7 @@ declare global {
 export class WalletError extends Error {}
 
 function ethereum(): Eip1193 {
-  if (typeof window === "undefined" || !window.ethereum) throw new WalletError("No browser wallet found. Install a wallet such as MetaMask.");
+  if (typeof window === "undefined" || !window.ethereum) throw new WalletError("No browser wallet was found. Install a wallet such as MetaMask, then try again.");
   return window.ethereum;
 }
 
@@ -34,7 +34,7 @@ export async function connectWallet(chainId: string): Promise<string> {
     try {
       await eth.request({ method: "wallet_switchEthereumChain", params: [{ chainId: hexChain(chainId) }] });
     } catch {
-      throw new WalletError(`Switch your wallet to chain ${chainId} and try again.`);
+      throw new WalletError(`Your wallet is on the wrong network. Switch it to network ${chainId} and try again.`);
     }
   }
   return account.toLowerCase();

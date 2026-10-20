@@ -18,16 +18,16 @@ function Fields({ state, idPrefix }: { state: ReviewFormState; idPrefix: string 
           id={`${idPrefix}-sourceOfTruthReference`}
           name="sourceOfTruthReference"
           type="text"
-          className="w-full rounded border border-neutral-300 px-3 py-2"
+          className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm placeholder:text-neutral-400 focus:border-neutral-900 focus:outline-none focus:ring-1 focus:ring-neutral-900"
         />
-        {err("sourceOfTruthReference") ? <p role="alert" className="text-sm text-red-700">{err("sourceOfTruthReference")}</p> : null}
+        {err("sourceOfTruthReference") ? <p role="alert" className="text-sm text-rose-700">{err("sourceOfTruthReference")}</p> : null}
       </div>
       <div className="space-y-1">
         <label htmlFor={`${idPrefix}-notes`} className="block text-sm font-medium">
           Review notes (optional, internal)
         </label>
-        <textarea id={`${idPrefix}-notes`} name="notes" rows={2} className="w-full rounded border border-neutral-300 px-3 py-2" />
-        {err("notes") ? <p role="alert" className="text-sm text-red-700">{err("notes")}</p> : null}
+        <textarea id={`${idPrefix}-notes`} name="notes" rows={2} className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm placeholder:text-neutral-400 focus:border-neutral-900 focus:outline-none focus:ring-1 focus:ring-neutral-900" />
+        {err("notes") ? <p role="alert" className="text-sm text-rose-700">{err("notes")}</p> : null}
       </div>
     </>
   );
@@ -39,8 +39,8 @@ export function ApproveForm({ action }: { action: Action }) {
     <form action={formAction} className="max-w-xl space-y-3" noValidate>
       <h3 className="font-medium">Approve</h3>
       <Fields state={state} idPrefix="approve" />
-      {state.error ? <p role="alert" className="text-sm text-red-700">{state.error}</p> : null}
-      <button type="submit" disabled={pending} className="rounded bg-neutral-900 px-4 py-2 text-white disabled:opacity-60">
+      {state.error ? <p role="alert" className="text-sm text-rose-700">{state.error}</p> : null}
+      <button type="submit" disabled={pending} className="inline-flex items-center justify-center rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
         {pending ? "Approving…" : "Approve request"}
       </button>
     </form>
@@ -56,7 +56,7 @@ export function RejectForm({ action }: { action: Action }) {
         <label htmlFor="reject-rejectionReason" className="block text-sm font-medium">
           Reason
         </label>
-        <select id="reject-rejectionReason" name="rejectionReason" className="w-full rounded border border-neutral-300 px-3 py-2" defaultValue="">
+        <select id="reject-rejectionReason" name="rejectionReason" className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm placeholder:text-neutral-400 focus:border-neutral-900 focus:outline-none focus:ring-1 focus:ring-neutral-900" defaultValue="">
           <option value="" disabled>
             Choose a reason
           </option>
@@ -66,11 +66,11 @@ export function RejectForm({ action }: { action: Action }) {
             </option>
           ))}
         </select>
-        {state.fieldErrors?.rejectionReason ? <p role="alert" className="text-sm text-red-700">{state.fieldErrors.rejectionReason}</p> : null}
+        {state.fieldErrors?.rejectionReason ? <p role="alert" className="text-sm text-rose-700">{state.fieldErrors.rejectionReason}</p> : null}
       </div>
       <Fields state={state} idPrefix="reject" />
-      {state.error ? <p role="alert" className="text-sm text-red-700">{state.error}</p> : null}
-      <button type="submit" disabled={pending} className="rounded border border-neutral-900 px-4 py-2 disabled:opacity-60">
+      {state.error ? <p role="alert" className="text-sm text-rose-700">{state.error}</p> : null}
+      <button type="submit" disabled={pending} className="inline-flex items-center justify-center rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-900 hover:bg-neutral-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
         {pending ? "Rejecting…" : "Reject request"}
       </button>
     </form>

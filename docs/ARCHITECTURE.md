@@ -260,6 +260,19 @@ Admin's browser wallet → events synced → key history visible in Admin and Is
   `deriveStateForCredential` and `deriveCandidateClaimStates` (own claims only). The candidate record pages
   show the derived state; the state is recomputed on each request and never stored. Decisions D53–D59.
 
+### 9.1 Product layer as built (Phases 11-13)
+
+- **Presentation** lives in `lib/verification/present.ts` (derived state -> plain-language badge, headline and explanation, for the
+  owner or the public), `summary.ts` (dashboard counts, public grouping) and `bundle.ts` (public proof bundle). Shared UI is in
+  `components/ui` (cards, badges, alerts, tabs, QR code, copy-link, confirmation dialog) and the layouts give each area its own navigation.
+- **Candidate:** dashboard, records by category, record detail (state, earlier-version note, visibility, sharing, version and request
+  history), import workbench, profile and sharing. Services: `server/candidate/profile.ts`, `import.ts`; `server/verification/records.ts`
+  derives each record's state and history from evidence.
+- **Issuer / admin:** the existing Phase 5-9 services behind restyled pages (five-step pipeline dashboard, requests, signing,
+  batches, current relationships, history, activity, wallet; organisations, members, wallets, transactions). No new chain behaviour.
+- **Public:** `/p/[handle]`, `/verify`, `/verify/[credentialRef]` and `/verify/[credentialRef]/bundle`, served by
+  `server/public/read.ts` over the same evidence loader and Phase 10 engine; no session is read.
+
 ---
 
 ## 10. Technology stack

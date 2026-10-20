@@ -1,13 +1,19 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { createOrganisationAction } from "@/app/admin/actions";
+import { Alert, Badge, btn, Card, EmptyState, inputClass, PageHeader, Section } from "@/components/ui";
 import { requireAdmin } from "@/lib/auth/guards";
 import { getDb } from "@/lib/database/client";
 import { adminListOrganisations } from "@/server/chain/queries";
+import type { Tone } from "@/lib/verification/present";
 
 export const metadata: Metadata = { title: "Organisations" };
 
-const input = "w-full rounded border border-neutral-300 px-3 py-2";
+const STATUS: Record<string, { tone: Tone; label: string }> = {
+  PENDING_ONBOARDING: { tone: "pending", label: "Awaiting registration" },
+  ACTIVE: { tone: "verified", label: "Active" },
+  SUSPENDED: { tone: "attention", label: "Suspended" },
+};
 
 export default async function AdminOrganisationsPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const { error } = await searchParams;
@@ -15,41 +21,50 @@ export default async function AdminOrganisationsPage({ searchParams }: { searchP
   const organisations = await adminListOrganisations(getDb(), actor);
 
   return (
-    <section className="space-y-6">
-      <h1 className="text-2xl font-semibold">Organisations</h1>
+    <div className="space-y-8">
+      <PageHeader title="Organisations" description="Employers, universities and licensing bodies that can confirm records." />
 
-      <form action={createOrganisationAction} className="max-w-xl space-y-3 rounded border border-neutral-200 p-4">
-        <h2 className="font-medium">Add an organisation</h2>
-        <p className="text-sm text-neutral-700">It starts as pending. Registering it on-chain (with your wallet) activates it.</p>
-        {error ? <p role="alert" className="text-sm text-red-700">{error}</p> : null}
-        <input name="legalName" required placeholder="Legal name" aria-label="Legal name" className={input} />
-        <input name="displayName" required placeholder="Display name" aria-label="Display name" className={input} />
-        <input name="slug" required placeholder="slug (lowercase-with-hyphens)" aria-label="Slug" className={input} />
-        <select name="kind" aria-label="Kind" className={input} defaultValue="EMPLOYER">
-          <option value="EMPLOYER">Employer</option>
-          <option value="EDUCATION">Education</option>
-          <option value="LICENSING_BODY">Licensing body</option>
-          <option value="ASSOCIATION">Association</option>
-          <option value="OTHER">Other</option>
-        </select>
-        <button type="submit" className="rounded bg-neutral-900 px-4 py-2 text-white">
-          Add organisation
-        </button>
-      </form>
+      <Section title="Add an organisation" description="It starts as awaiting registration. Registering it with your wallet activates it.">
+        <form action={createOrganisationAction} className="max-w-xl space-y-3 rounded-xl border border-neutral-200 bg-white p-4">
+          {error ? <Alert tone="error">{error}</Alert> : null}
+          <input name="legalName" required placeholder="Legal name" aria-label="Legal name" className={inputClass} />
+          <input name="displayName" required placeholder="Display name" aria-label="Display name" className={inputClass} />
+          <input name="slug" required placeholder="short-name (lowercase-with-hyphens)" aria-label="Short name" className={inputClass} />
+          <select name="kind" aria-label="Kind of organisation" className={inputClass} defaultValue="EMPLOYER">
+            <option value="EMPLOYER">Employer</option>
+            <option value="EDUCATION">Education</option>
+            <option value="LICENSING_BODY">Licensing body</option>
+            <option value="ASSOCIATION">Association</option>
+            <option value="OTHER">Other</option>
+          </select>
+          <button type="submit" className={btn.primary}>
+            Add organisation
+          </button>
+        </form>
+      </Section>
 
-      <ul className="space-y-2">
-        {organisations.map((o) => (
-          <li key={o.id} className="rounded border border-neutral-200 p-3">
-            <Link href={`/admin/organisations/${o.id}`} className="font-medium underline">
-              {o.displayName}
-            </Link>{" "}
-            <span className="text-sm text-neutral-700">
-              · {o.kind.toLowerCase().replaceAll("_", " ")} · {o.status.toLowerCase().replaceAll("_", " ")}
-            </span>
-          </li>
-        ))}
-        {organisations.length === 0 ? <li className="text-sm text-neutral-700">No organisations yet.</li> : null}
-      </ul>
-    </section>
+      <Section title="All organisations">
+        {organisations.length === 0 ? (
+          <EmptyState title="No organisations yet">Add the first one above.</EmptyState>
+        ) : (
+          <ul className="grid gap-3 md:grid-cols-2">
+            {organisations.map((o) => {
+              const s = STATUS[o.status] ?? { tone: "neutral" as Tone, label: o.status };
+              return (
+                <Card as="li" key={o.id} className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <Link href={`/admin/organisations/${o.id}`} className="font-semibold hover:underline">
+                      {o.displayName}
+                    </Link>
+                    <p className="text-sm text-neutral-600">{o.kind.toLowerCase().replaceAll("_", " ")}</p>
+                  </div>
+                  <Badge tone={s.tone}>{s.label}</Badge>
+                </Card>
+              );
+            })}
+          </ul>
+        )}
+      </Section>
+    </div>
   );
 }

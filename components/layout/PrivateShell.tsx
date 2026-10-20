@@ -1,15 +1,20 @@
 import { signOutAction } from "@/lib/auth/actions";
-import { PageShell } from "./PageShell";
+import { PageShell, type NavItem } from "./PageShell";
 
-/** Shell for private areas: no cross-role navigation, just sign-out. */
-export function PrivateShell({ children }: { children: React.ReactNode }) {
+/** Shell for private areas: navigation for the ONE area the user belongs to, plus sign-out. No cross-role links. */
+export function PrivateShell({ children, nav = [] }: { children: React.ReactNode; nav?: NavItem[] }) {
   return (
-    <PageShell nav={[]}>
-      <form action={signOutAction} className="mb-6 flex justify-end">
-        <button type="submit" className="text-sm underline">
-          Sign out
-        </button>
-      </form>
+    <PageShell
+      nav={nav}
+      wide
+      actions={
+        <form action={signOutAction}>
+          <button type="submit" className="rounded-lg px-3 py-1.5 font-medium text-neutral-700 hover:bg-neutral-100">
+            Sign out
+          </button>
+        </form>
+      }
+    >
       {children}
     </PageShell>
   );

@@ -241,6 +241,31 @@ specified in [BLOCKCHAIN_MODEL.md](BLOCKCHAIN_MODEL.md).
   path (key history and revocation) and evidence-watermarked caching are Phase 13/14 work. Per-credential
   ProofPulse log replay is O(log length); acceptable for the MVP, a snapshot cache is a later optimisation.
 
+## 5f. Product layer: import, public profile, public verifier (Phases 11-13)
+
+- **Import is not verification.** The importer (`lib/import`) is pure: it reads pasted text or a CSV and never calls a network
+  service, scrapes, automates a login or holds a LinkedIn credential (structural tests). The preview persists nothing. The confirm
+  step runs inside one transaction under a per-candidate advisory lock, requires an explicit per-record confirmation, repeats
+  validation through `createClaim` and refuses duplicates of the candidate's existing records or earlier records of the same
+  batch, so a retry or double-submit creates nothing twice. The candidate id is `actor.userId`; ids, roles and organisations in
+  the payload are ignored. Imported claims are PRIVATE SELF_DECLARED.
+- **Public reads have no actor, so the rules live in the queries.** Only records the owner marked PUBLIC are listed; a private,
+  unlisted-elsewhere, unknown or malformed profile/credential is answered identically (404). No query lists or searches people
+  or credentials; a 32-byte credential reference or a handle is the only way in. Results never contain a user id, claim id,
+  credential row id, salt, nonce, reviewer note, source reference or pipeline status (rendered HTML and JSON are tested).
+- **Verification shown to the public is the Phase 10 derivation** over FINALIZED evidence. A stored "ANCHORED" status without
+  finalized evidence renders as pending. A pending request is not attributed to an organisation publicly.
+- **Evidence bundle.** Public by construction: signer wallet, signed-message hash and signature (the signer is recoverable from them),
+  commitments, inclusion proof, anchor and transaction identifiers, derived state and checks. Excluded: salts, the signing nonce,
+  claim content, candidate identity, notes, audit data. Full re-derivation of the signed message would need the private content and salt, which
+  the holder keeps; that is deliberate.
+- **Private areas** keep per-page server guards (every page calls its role guard; areas do not import each other's actions). Destructive
+  or exceptional actions (revocation, ending a relationship, suspension, marking a wallet compromised) require a confirmation dialog and
+  explain their consequence. The browser still supplies only account, signature and transaction hash.
+- **Known limits.** There is no application-level rate limiting yet (Phase 14, with the hosting platform); verification is recomputed per
+  request (no cache, so never stale) and a ProofPulse log replay is linear in the log; QR codes and links use `FARJI_PUBLIC_URL` or the
+  request host; no live browser-wallet click-through has been run.
+
 ---
 
 ## 6. Authentication

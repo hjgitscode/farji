@@ -23,9 +23,9 @@ Rules that apply to every phase are in [../CLAUDE.md](../CLAUDE.md).
 | 8 | Final Solidity contract | ✅ Complete (56 contract tests incl. Solidity ↔ TypeScript golden vectors; Hardhat 2.26.5; Slither not run — Phase 16) |
 | 9 | Real application-to-blockchain integration | ✅ Complete (automated: unit, rollback-only DB and real-local-node integration tests pass; additive migration `txNonce`; no public-testnet deployment yet — Phase 15; no browser-wallet click-through yet) |
 | 10 | Verification/state engine | ✅ Complete (automated: 83 new unit tests, 19 new rollback-only DB tests and 3 new real-local-chain journeys pass; no schema change; no live MetaMask / public-testnet verification) |
-| 11 | Candidate professional UI | ⬜ Not started |
-| 12 | Issuer/admin UI | ⬜ Not started |
-| 13 | Public profile and verification UX | ⬜ Not started |
+| 11 | Candidate professional UI | ✅ Complete (automated: dashboard, records, detail, import, profile and sharing; parser, DB, render and structural tests pass; no schema change; no browser click-through) |
+| 12 | Issuer/admin UI | ✅ Complete (automated: restyled pages over the Phase 5-9 services, history, confirmations; structural and DB tests pass; no live MetaMask click-through) |
+| 13 | Public profile and verification UX | ✅ Complete (automated: public profile, verifier, evidence bundle, QR/share, earlier-version note; DB, render and structural tests pass; rate limiting deferred to Phase 14) |
 | 14 | Cloud/database deployment | ⬜ Not started |
 | 15 | Public EVM testnet deployment | ⬜ Not started |
 | 16 | Security review and testing | ⬜ Not started |
@@ -238,6 +238,10 @@ Rules that apply to every phase are in [../CLAUDE.md](../CLAUDE.md).
   version history, requests, sharing.
 - **Exit:** accessible, responsive; badges use derived states only; operational
   statuses shown as progress, not verification.
+- **Delivered (D60-D66):** candidate dashboard (counts of real derived states), records by category, record detail with
+  version/request history, visibility controls and the "earlier version verified" note, profile and sharing (link, QR),
+  professional-profile import (pasted text or CSV; preview, edit, confirm; SELF_DECLARED only), shared UI kit.
+- **Not done:** a signed-in browser click-through; evidence-watermarked caching (verification is recomputed, never stale).
 
 ## Phase 12 — Issuer/admin UI
 - **Goal:** Issuer dashboard (requests, review, approve/reject, sign, CohortProof,
@@ -245,11 +249,23 @@ Rules that apply to every phase are in [../CLAUDE.md](../CLAUDE.md).
   (Organisations, members, wallet authorise/retire/rotate/compromise, key history,
   audit, oversight). All chain actions real, through browser wallets.
 - **Exit:** e2e tests of key flows against local chain.
+- **Delivered:** the existing Phase 5-9 flows behind clearer pages - issuer dashboard with the Review -> Sign -> Queue -> Anchor ->
+  Finalized pipeline, request inbox/detail with the attestation statement, signing with plain "View signing details", credential batches,
+  current relationships with a confirmed End-relationship dialog, revocation behind an exceptional-action confirmation, verification
+  history, activity with human transaction states, wallet binding; admin dashboard, organisations, members, wallet authorise / retire /
+  rotate / mark compromised (confirmed), transactions and rescan. The real-chain journeys (`npm run test:chain`) remain the end-to-end proof.
+- **Not done:** a live MetaMask click-through (no browser wallet in the automated environment).
 
 ## Phase 13 — Public profile and verification UX
 - **Goal:** `/p/[handle]`, `/verify/[credentialRef]`, "View verification details",
   proof bundle download, visibility enforcement, rate limiting. Rejections not shown.
 - **Must not:** add Developers/Technology/Novelty/Contract-explorer/educational pages.
+- **Delivered (D60-D66):** `/p/{handle}` (verified vs self-declared vs attention groups), `/verify` lookup, `/verify/{credentialRef}` with plain
+  explanation and collapsed "View verification details", `/verify/{credentialRef}/bundle` (public JSON proof bundle), copy-link and QR for
+  profile and credential, conservative visibility. All state comes from the Phase 10 engine; pages are unindexed for verifier pages and
+  unlisted profiles.
+- **Not done:** rate limiting (Phase 14 with the hosting layer); evidence-watermarked caching (correctness first); a live chain re-read of key
+  history and revocation on the public path (the finalized mirror is used).
 
 ## Phase 14 — Cloud/database deployment
 - **Goal:** Supabase production DB and Auth, Vercel project, secrets, migrations
@@ -327,6 +343,13 @@ Rules that apply to every phase are in [../CLAUDE.md](../CLAUDE.md).
 | D49 | Transaction replacement detection | Additive `BlockchainTransaction.txNonce BIGINT NULL` (immutable): the sender's nonce of the transaction the server itself retrieved. A PENDING row whose hash is unknown and whose nonce is consumed at the settled height is DROPPED (replaced); never assumed from timing alone (24 h give-up only for a transaction that no node knows and whose nonce is unused). |
 | D50 | Finality and the mirror | CONFIRMED = mined (status 1), tracking only. FINALIZED = block at/under the Ethereum `finalized` tag (Sepolia/mainnet) or `depth:N` (local development `depth:0`, integration tests `depth:2`). Organisation status, IssuerKey, Anchor, Revocation and Credential ANCHORED are written **only** at FINALIZED, in the same database transaction. A reorg before finality returns the transaction to PENDING; nothing needs undoing. |
 | D51 | D7 `maxAnchorDelay` | **30 days** (decided; see BLOCKCHAIN_MODEL §8.4a). Not enforceable by the contract; the app warns after 21 days and refuses to build an anchor in which every attestation is older than 30 days; Phase 10 derives PENDING/INVALID_PROOF. |
+| D60 | Visibility model | Uses the existing schema: `Profile.visibility` gates `/p/{handle}`; `Claim.visibility` PUBLIC = listed + verifier link, UNLISTED = verifier link only, PRIVATE = neither. All default PRIVATE; only the owner changes them. Public identity = `Profile.handle`. No migration. |
+| D61 | Import is not verification | Pure deterministic parser over pasted text or CSV (LinkedIn data-export CSVs included); no LinkedIn API, OAuth, scraping or AI service. Nothing is guessed: unreadable or partial dates (year-only; month-only gets the 1st, flagged) are flagged, lifecycle is only suggested. Preview persists nothing; confirm requires an explicit per-record confirmation and creates PRIVATE SELF_DECLARED claims through `createClaim`. |
+| D62 | Import idempotency without a schema change | Per-candidate transaction advisory lock + normalised record key (category, title, organisation, start, end, expiry) compared with existing records and the batch, so retries and double-submits create nothing twice. An organisation name is matched only by exact normalised equality against ACTIVE organisations and is informational; it never attaches or creates an organisation. |
+| D63 | Public reads | No actor; rules live in the queries. Unknown, private and malformed answer identically (404). No listing, search or directory. Verifier pages and unlisted profiles are `noindex`. A pending request is not attributed publicly. |
+| D64 | Proof bundle | JSON `farji.proof-bundle` v1 built from the Phase 10 evidence: derived state and checks, signer wallet + typedDataHash + signature, commitments, inclusion proof(s) and anchor/transaction identifiers. Excludes salts, nonce, content, candidate identity, notes. The full signed message cannot be re-derived without the holder's private content, by design. |
+| D65 | Earlier-version note | Shown when the current version is SELF_DECLARED/PENDING and an earlier version derived a verified-family state; never a badge; version history shows each version's own derived state. |
+| D66 | Caching | Not added: verification is recomputed on every request, so it cannot be stale. Evidence-watermarked caching stays deferred until measured need. |
 | D52 | Sync, governance and suspension | Recorded-transaction-driven sync plus an admin range rescan (no cursor table; only replacements of recorded transactions are adopted). Admin and issuer authority never overlap on-chain. The app's issuer access follows D32, so while an Organisation is SUSPENDED the web app blocks anchoring and revocation even though the contract still permits revocation. A wallet proof of possession binds `operatorMemberId`. Pages are minimal (polish: Phase 12). |
 | D53 | Verification engine architecture | Pure `lib/verification` derives a state from RAW evidence + policy + `now` and recomputes every hash, signature, Merkle fold and chain-root link itself; `server/verification` only reads and maps rows (per-call cache of anchors and update logs). Nothing is stored (no verified flag, score or state column; structural tests) and the state is recomputed per request. Caching with an evidence watermark, the proof-bundle export and a live chain re-read on the public path are deferred (Phases 13/14). |
 | D54 | Anchor evidence rules | Only FINALIZED chain evidence is positive; a CONFIRMED anchor gives PENDING and a CONFIRMED revocation is noted, not applied. The anchor must belong to the credential's own Organisation and chain, carry the sealed root / replayed root, and the Organisation's attestation chain is recomputed from epoch 1: a missing earlier epoch = not yet synchronised (PENDING), a wrong formula or link = INVALID_PROOF. |

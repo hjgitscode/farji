@@ -21,6 +21,16 @@ export function configuredChainId(): string | null {
   }
 }
 
+/** Public network facts for "View signing details" (chain id and registry address are public). */
+export function configuredChainInfo(): { chainId: string; registry: string } | null {
+  try {
+    const cfg = getChain().cfg;
+    return { chainId: cfg.chainId.toString(), registry: cfg.registry };
+  } catch {
+    return null;
+  }
+}
+
 const TX_SELECT = {
   id: true,
   txHash: true,
@@ -58,6 +68,8 @@ export async function adminGetOrganisation(db: Db, actor: Actor, id: string) {
       kind: true,
       status: true,
       orgId: true,
+      pulseFreshnessDays: true,
+      members: { orderBy: { invitedAt: "asc" }, select: { id: true, status: true, invitedAt: true, joinedAt: true, removedAt: true, operatedKeys: { select: { id: true } } } },
       issuerKeys: {
         orderBy: { createdAt: "asc" },
         select: { id: true, walletAddress: true, validFrom: true, validUntil: true, compromisedAt: true, operatorMemberId: true, authoriseTransaction: { select: { status: true } } },

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { updateClaimAction } from "@/app/candidate/actions";
 import { ClaimForm } from "@/components/candidate/ClaimForm";
+import { PageHeader } from "@/components/ui";
 import { requireCandidate } from "@/lib/auth/guards";
 import { readContent } from "@/lib/core/claims";
 import { getDb } from "@/lib/database/client";
@@ -26,18 +27,12 @@ export default async function EditClaimPage({ params }: { params: Promise<{ clai
   const initial = { ...readContent(claim.latestVersion.content), lifecycleType: claim.latestVersion.proposedLifecycleType };
 
   return (
-    <section className="space-y-4">
-      <h1 className="text-2xl font-semibold">Edit record</h1>
-      <p className="max-w-xl text-sm text-neutral-700">
-        Saving creates a new version (version {claim.latestVersion.versionNumber + 1}). Earlier versions are kept, and any open
-        verification request for the previous version is closed as superseded.
-      </p>
-      <ClaimForm
-        action={updateClaimAction.bind(null, claim.id)}
-        submitLabel="Save as new version"
-        initial={initial}
-        fixedCategory={claim.category}
+    <div>
+      <PageHeader
+        title="Edit record"
+        description={`Saving creates a new version (version ${claim.latestVersion.versionNumber + 1}). Earlier versions are kept, and any open verification request for the previous version is closed as superseded. The new version is not verified until an organisation verifies it.`}
       />
-    </section>
+      <ClaimForm action={updateClaimAction.bind(null, claim.id)} submitLabel="Save as new version" initial={initial} fixedCategory={claim.category} />
+    </div>
   );
 }

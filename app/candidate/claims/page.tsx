@@ -1,57 +1,59 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { RecordCard } from "@/components/candidate/RecordCard";
+import { Alert, btn, EmptyState, PageHeader, TabNav } from "@/components/ui";
 import { requireCandidate } from "@/lib/auth/guards";
-import { readContent, REQUEST_STATUS_LABEL } from "@/lib/core/claims";
+import { CATEGORY_PLURAL } from "@/lib/format";
 import { getDb } from "@/lib/database/client";
-import { VerificationStatus } from "@/components/candidate/VerificationStatus";
-import { listCandidateClaims } from "@/server/candidate/claims";
-import { deriveCandidateClaimStates } from "@/server/verification/service";
+import { deriveCandidateRecords } from "@/server/verification/records";
 
 export const metadata: Metadata = { title: "My records" };
 
-export default async function ClaimsPage() {
+const TABS = [
+  { key: "ALL", label: "All records", href: "/candidate/claims" },
+  { key: "EXPERIENCE", label: "Experience", href: "/candidate/claims?category=EXPERIENCE" },
+  { key: "EDUCATION", label: "Education", href: "/candidate/claims?category=EDUCATION" },
+  { key: "CERTIFICATION", label: "Certifications", href: "/candidate/claims?category=CERTIFICATION" },
+  { key: "MEMBERSHIP", label: "Memberships", href: "/candidate/claims?category=MEMBERSHIP" },
+];
+
+export default async function ClaimsPage({ searchParams }: { searchParams: Promise<{ category?: string }> }) {
+  const { category } = await searchParams;
   const actor = await requireCandidate("/candidate/claims");
-  const claims = await listCandidateClaims(getDb(), actor);
+  const filter = TABS.some((t) => t.key === category) ? (category as string) : "ALL";
   // Derived from evidence on every request; nothing about verification is stored.
-  const { available, states } = await deriveCandidateClaimStates(getDb(), actor);
+  const { available, records } = await deriveCandidateRecords(getDb(), actor);
+  const shown = records.filter((r) => !r.archivedAt && (filter === "ALL" || r.category === filter));
 
   return (
-    <section className="space-y-4">
-      <div className="flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold">My records</h1>
-        <Link href="/candidate/claims/new" className="rounded bg-neutral-900 px-3 py-2 text-sm text-white">
-          Add a record
-        </Link>
-      </div>
-
-      {claims.length === 0 ? (
-        <p className="text-neutral-700">You have not added any records yet.</p>
+    <div>
+      <PageHeader
+        title={filter === "ALL" ? "My records" : CATEGORY_PLURAL[filter]}
+        description="Each record shows where it stands today. Only an organisation's confirmation makes a record verified."
+        actions={
+          <>
+            <Link href="/candidate/import" className={btn.secondary}>
+              Import
+            </Link>
+            <Link href="/candidate/claims/new" className={btn.primary}>
+              Add record
+            </Link>
+          </>
+        }
+      />
+      <TabNav items={TABS} current={filter} />
+      {!available ? <Alert tone="warning">Verification status is unavailable right now.</Alert> : null}
+      {shown.length === 0 ? (
+        <EmptyState title="Nothing here yet" action={<Link href="/candidate/claims/new" className={btn.primary}>Add a record</Link>}>
+          {filter === "ALL" ? "You have not added any records yet." : "You have no records in this section yet."}
+        </EmptyState>
       ) : (
-        <ul className="divide-y divide-neutral-200 border-y border-neutral-200">
-          {claims.map((claim) => {
-            const content = readContent(claim.latestVersion?.content);
-            const latestRequest = claim.latestVersion?.verificationRequests[0];
-            return (
-              <li key={claim.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
-                <div>
-                  <Link href={`/candidate/claims/${claim.id}`} className="font-medium underline">
-                    {content.title ?? "Untitled"}
-                  </Link>
-                  <p className="text-sm text-neutral-600">
-                    {content.organisationName} · {claim.category.toLowerCase()} · version {claim.latestVersion?.versionNumber}
-                  </p>
-                </div>
-                <div className="space-y-1 text-right">
-                  <VerificationStatus result={states.get(claim.id)} available={available} />
-                  <p className="text-xs text-neutral-600">
-                    {latestRequest ? `Request: ${REQUEST_STATUS_LABEL[latestRequest.status] ?? latestRequest.status}` : "No request yet"}
-                  </p>
-                </div>
-              </li>
-            );
-          })}
+        <ul className="grid gap-3 md:grid-cols-2">
+          {shown.map((r) => (
+            <RecordCard key={r.claimId} record={r} available={available} />
+          ))}
         </ul>
       )}
-    </section>
+    </div>
   );
 }

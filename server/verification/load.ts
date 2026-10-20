@@ -19,7 +19,7 @@ import type {
 
 export type VerificationDb = Pick<
   PrismaClient,
-  "credential" | "anchor" | "proofPulseUpdate" | "claim" | "verificationRequest" | "organisation"
+  "credential" | "anchor" | "proofPulseUpdate" | "claim" | "verificationRequest" | "organisation" | "profile" | "revocation"
 >;
 
 const KEY_SELECT = {

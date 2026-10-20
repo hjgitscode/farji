@@ -1,38 +1,46 @@
 import type { Metadata } from "next";
 import { rescanFormAction, syncAllAction, syncTransactionAction } from "@/app/admin/actions";
+import { btn, Card, inputClass, PageHeader, Section } from "@/components/ui";
 import { TxTable } from "@/components/wallet/TxTable";
 import { ActionButton } from "@/components/wallet/WalletButtons";
 import { requireAdmin } from "@/lib/auth/guards";
 import { getDb } from "@/lib/database/client";
 import { adminListTransactions } from "@/server/chain/queries";
 
-export const metadata: Metadata = { title: "Blockchain transactions" };
+export const metadata: Metadata = { title: "Transactions" };
 
 export default async function AdminTransactionsPage() {
   const actor = await requireAdmin("/admin/transactions");
   const rows = await adminListTransactions(getDb(), actor);
   return (
-    <section className="space-y-6">
-      <h1 className="text-2xl font-semibold">Blockchain transactions</h1>
-      <p className="text-sm text-neutral-700">
-        Statuses are operational. A transaction counts as evidence only once it is FINALIZED; the server, not the browser, decides that by reading the chain.
-      </p>
-      <ActionButton label="Check all unfinished transactions" action={syncAllAction} />
+    <div className="space-y-8">
+      <PageHeader
+        title="Transactions"
+        description="Everything sent from a wallet is tracked until it is final. The server decides what counts by reading the network itself, never the browser."
+        actions={<ActionButton label="Check all unfinished" action={syncAllAction} />}
+      />
       <TxTable rows={rows} sync={syncTransactionAction} />
-      <form
-        action={rescanFormAction}
-        className="space-y-2 rounded border border-neutral-200 p-3 text-sm"
-      >
-        <h2 className="font-medium">Rescan a block range</h2>
-        <p className="text-neutral-700">Finds registry transactions FARJI never recorded. Only replacements of a recorded transaction are adopted.</p>
-        <div className="flex gap-2">
-          <input name="from" type="number" min={0} required placeholder="from block" aria-label="From block" className="w-32 rounded border border-neutral-300 px-2 py-1.5" />
-          <input name="to" type="number" min={0} required placeholder="to block" aria-label="To block" className="w-32 rounded border border-neutral-300 px-2 py-1.5" />
-          <button type="submit" className="rounded border border-neutral-900 px-3 py-1.5">
-            Rescan
-          </button>
-        </div>
-      </form>
-    </section>
+      <Section title="Look for missed transactions" description="Finds registry transactions FARJI never recorded. Only replacements of a recorded transaction are adopted; everything else is only noted.">
+        <Card>
+          <form action={rescanFormAction} className="flex flex-wrap items-end gap-2">
+            <div className="space-y-1">
+              <label htmlFor="from" className="block text-xs font-medium text-neutral-700">
+                From block
+              </label>
+              <input id="from" name="from" type="number" min={0} required className={`${inputClass} w-36`} />
+            </div>
+            <div className="space-y-1">
+              <label htmlFor="to" className="block text-xs font-medium text-neutral-700">
+                To block
+              </label>
+              <input id="to" name="to" type="number" min={0} required className={`${inputClass} w-36`} />
+            </div>
+            <button type="submit" className={btn.secondary}>
+              Scan
+            </button>
+          </form>
+        </Card>
+      </Section>
+    </div>
   );
 }
