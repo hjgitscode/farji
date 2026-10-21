@@ -9,7 +9,11 @@ import { getDb } from "@/lib/database/client";
 import { CATEGORY_LABEL, formatDate, formatDateTime, formatPeriod, LIFECYCLE_LABEL } from "@/lib/format";
 import { presentState } from "@/lib/verification/present";
 import { publicOrigin, verifierPath } from "@/server/public/origin";
+import { TooManyRequests, VerificationUnavailable } from "@/components/public/Notices";
+import { RULES } from "@/lib/security/rate-limit";
 import { getPublicCredential, parseCredentialRef } from "@/server/public/read";
+import { checkLimit, requestKey } from "@/server/security/limit";
+import { isVerificationConfigured } from "@/server/verification/service";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +24,8 @@ export const metadata: Metadata = { title: "Verify a credential", robots: { inde
 
 export default async function VerifyCredentialPage({ params }: Props) {
   const { credentialRef } = await params;
+  if (!checkLimit(RULES.publicRead, await requestKey()).allowed) return <TooManyRequests />;
+  if (!isVerificationConfigured()) return <VerificationUnavailable />;
   const ref = parseCredentialRef(credentialRef);
   const view = ref ? await getPublicCredential(getDb(), ref) : null;
   // Malformed, unknown and unpublished all look the same.

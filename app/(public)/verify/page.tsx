@@ -4,8 +4,8 @@ import { lookupCredentialAction } from "./actions";
 
 export const metadata: Metadata = { title: "Verify a credential" };
 
-export default async function VerifyPage({ searchParams }: { searchParams: Promise<{ invalid?: string }> }) {
-  const { invalid } = await searchParams;
+export default async function VerifyPage({ searchParams }: { searchParams: Promise<{ invalid?: string; limited?: string }> }) {
+  const { invalid, limited } = await searchParams;
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <PageHeader title="Verify a credential" description="Paste the verification link you were given, or scan its QR code, to see exactly where a record stands today." />
@@ -15,6 +15,7 @@ export default async function VerifyPage({ searchParams }: { searchParams: Promi
             Verification link or reference
           </label>
           <input id="reference" name="reference" type="text" required autoComplete="off" className={inputClass} placeholder="https://… or 0x…" aria-describedby={invalid ? "ref-error" : undefined} />
+          {limited ? <Alert tone="warning">Too many lookups from your connection. Wait a minute and try again.</Alert> : null}
           {invalid ? (
             <div id="ref-error">
               <Alert tone="error">That is not a valid verification link. Check it and try again.</Alert>

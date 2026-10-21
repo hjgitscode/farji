@@ -21,7 +21,12 @@
     "chain:deploy:local": "hardhat run scripts/deploy.ts --network localhost --tsconfig contracts/tsconfig.json",
     "chain:abi": "node scripts/export-abi.cjs",
     "chain:sync": "node scripts/chain-sync.cjs",
-    "test:chain": "npm run compile && vitest run --config vitest.chain.config.mts"
+    "test:chain": "npm run compile && vitest run --config vitest.chain.config.mts",
+    "postinstall": "prisma generate",
+    "env:check": "ts-node --transpile-only --project contracts/tsconfig.json scripts/check-env.ts",
+    "chain:keystore": "node scripts/keystore.cjs",
+    "chain:deploy:sepolia": "npm run compile && node scripts/deploy-sepolia.cjs",
+    "chain:check": "node scripts/check-deployment.cjs"
   },
   "dependencies": {
     "@openzeppelin/merkle-tree": "1.0.8",
@@ -55,5 +60,8 @@
     "ts-node": "10.9.2",
     "typescript": "~6.0.3",
     "vitest": "^5.0.3"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

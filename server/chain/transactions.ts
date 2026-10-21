@@ -6,6 +6,7 @@ import { inTransaction, isUuid, type Tx } from "@/server/issuance/common";
 import type { IssuerScope } from "@/server/issuer/review";
 import { isAdminPurpose, paramsFromCall, resolveAction, scopeFor, type ActionParams, type ActionScope, type ChainDb } from "./actions";
 import type { ChainContext } from "./context";
+import { ensureChainReady } from "./ready";
 
 // Server-built transactions and the recording of hashes a browser wallet reports (Phase 9).
 //
@@ -25,7 +26,9 @@ export type BuiltTransaction = {
   warnings: string[];
 };
 
-type Env = Pick<ChainContext, "cfg" | "reader">;
+// `rpc` is optional only so unit tests can build against a scripted reader; every application caller passes the full chain
+// context (a structural test enforces it), so the endpoint check below always runs in the product.
+type Env = Pick<ChainContext, "cfg" | "reader"> & Partial<Pick<ChainContext, "rpc">>;
 
 export async function buildTransaction(
   db: ChainDb,
@@ -38,6 +41,7 @@ export async function buildTransaction(
 ): Promise<BuiltTransaction> {
   const scope = scopeFor(actor, purpose);
   const now = opts.now ?? new Date();
+  if (chain.rpc) await ensureChainReady({ cfg: chain.cfg, rpc: chain.rpc });
 
   return inTransaction(db, async (tx) => {
     const resolved = await resolveAction(tx as unknown as ChainDb, scope, purpose, targetId, params, { now, enforceAnchorDelay: true });
@@ -96,6 +100,7 @@ export async function recordSubmittedTransaction(
   const txHash = input.txHash.toLowerCase();
   const chainId = Number(chain.cfg.chainId);
   const now = opts.now ?? new Date();
+  await ensureChainReady(chain);
 
   // Idempotent: reporting the same hash twice returns the same row (never a duplicate).
   const existing = await db.blockchainTransaction.findUnique({ where: { chainId_txHash: { chainId, txHash } } });

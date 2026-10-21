@@ -8,6 +8,8 @@ import { DomainError } from "@/server/candidate/errors";
 import { createClaim, submitVerificationRequest, updateClaim, withdrawVerificationRequest } from "@/server/candidate/claims";
 import { confirmImport, previewImport, type ImportOutcome, type ImportPreview } from "@/server/candidate/import";
 import { saveProfile, setClaimVisibility } from "@/server/candidate/profile";
+import { RULES } from "@/lib/security/rate-limit";
+import { checkLimit } from "@/server/security/limit";
 
 // Thin Server Actions: authenticate the candidate (Phase 3 guard), read an ALLOWLIST of
 // form fields, call the service, translate the result. The candidate identity always comes
@@ -140,6 +142,7 @@ export type ImportPreviewState = { error?: string; preview?: ImportPreview; id?:
 /** Parses and previews. Persists nothing. */
 export async function previewImportAction(_prev: ImportPreviewState, formData: FormData): Promise<ImportPreviewState> {
   const actor = await requireCandidate("/candidate/import");
+  if (!checkLimit(RULES.importPreview, actor.userId).allowed) return { error: "You are importing too quickly. Wait a minute and try again." };
   try {
     return { preview: await previewImport(getDb(), actor, text(formData, "text")), id: String(Date.now()) };
   } catch (e) {
@@ -152,6 +155,7 @@ export type ImportConfirmResult = { error?: string; outcome?: ImportOutcome };
 /** Creates SELF_DECLARED claims for the confirmed items through the Phase 4 service. The payload is parsed defensively. */
 export async function confirmImportAction(payload: string): Promise<ImportConfirmResult> {
   const actor = await requireCandidate("/candidate/import");
+  if (!checkLimit(RULES.importConfirm, actor.userId).allowed) return { error: "You are importing too quickly. Wait a minute and try again." };
   let items: unknown;
   try {
     if (typeof payload !== "string" || payload.length > 400_000) throw new Error("too large");

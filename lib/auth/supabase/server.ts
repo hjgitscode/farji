@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
+import { authCookieOptions } from "../cookies";
 import { getSupabaseEnv } from "../env";
 
 /**
@@ -12,6 +13,7 @@ export async function createSupabaseServerClient() {
   const { url, publishableKey } = getSupabaseEnv();
 
   return createServerClient(url, publishableKey, {
+    cookieOptions: authCookieOptions(process.env.NODE_ENV === "production"),
     cookies: {
       getAll() {
         return cookieStore.getAll();

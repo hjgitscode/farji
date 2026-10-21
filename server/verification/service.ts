@@ -19,6 +19,9 @@ export type VerificationOptions = {
 
 export type PolicyFor = (pulseFreshnessDays: number) => VerificationPolicy;
 
+/** True when the chain and registry are configured, so states can be derived at all. */
+export const isVerificationConfigured = (): boolean => policyFactory() !== null;
+
 /** Builds the policy factory, or returns null when the chain/registry is not configured. */
 export function policyFactory(domain?: Eip712Config): PolicyFor | null {
   let resolved = domain;

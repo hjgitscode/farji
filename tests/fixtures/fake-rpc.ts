@@ -21,6 +21,9 @@ export class FakeRpc implements ChainRpc {
   blocks = new Map<number, RpcBlock>();
   nonces = new Map<string, number>(); // address -> settled transaction count
   logs: RpcLog[] = [];
+  chainId = 31337n;
+  /** Code at the registry address ("0x" = nothing deployed). */
+  code = "0x6001";
 
   async getBlockNumber() {
     return this.latest;
@@ -40,6 +43,12 @@ export class FakeRpc implements ChainRpc {
   }
   async getLogs() {
     return this.logs;
+  }
+  async getChainId() {
+    return this.chainId;
+  }
+  async getCode() {
+    return this.code;
   }
 
   /** Makes a transaction known to the node (mempool). */

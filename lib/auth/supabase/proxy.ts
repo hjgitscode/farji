@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { authCookieOptions } from "../cookies";
 import { getSupabaseEnv } from "../env";
 
 /**
@@ -12,6 +13,7 @@ export async function updateSession(request: NextRequest): Promise<{ response: N
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(url, publishableKey, {
+    cookieOptions: authCookieOptions(process.env.NODE_ENV === "production"),
     cookies: {
       getAll() {
         return request.cookies.getAll();

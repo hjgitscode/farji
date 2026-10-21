@@ -6,6 +6,7 @@ import { assertAdmin, type ChainDb } from "./actions";
 import type { ChainContext } from "./context";
 import type { Finality } from "./config";
 import { mirrorFinalizedTransaction } from "./mirror";
+import { ensureChainReady } from "./ready";
 import { PENDING_GIVE_UP_MS } from "./policy";
 import type { BlockTag, ChainRpc } from "./rpc";
 import type { Actor } from "@/lib/auth/authorize";
@@ -52,6 +53,8 @@ export async function syncTransaction(db: ChainDb, chain: Env, txId: string, opt
   const now = opts.now ?? new Date();
   const first = await db.blockchainTransaction.findUnique({ where: { id: txId } });
   if (!first) throw new DomainError("NOT_FOUND", "Transaction not found.");
+  // Never read a node that is not the configured network, or an address that holds no registry (Phase 15).
+  await ensureChainReady(chain);
 
   let status = first.status;
   let changed = false;

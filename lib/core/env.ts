@@ -14,10 +14,19 @@ export class EnvValidationError extends Error {
 
 const DEFAULT_APP_URL = "http://localhost:3000";
 
+const stripHost = (v: string | undefined) => (v ?? "").trim().replace(/^https?:\/\//, "").replace(/\/+$/, "");
+
 /** Validates and returns typed environment configuration. Pure: takes the env as input. */
 export function parseEnv(source: Record<string, string | undefined>): AppEnv {
   const problems: string[] = [];
-  const appUrl = source.NEXT_PUBLIC_APP_URL?.trim() || DEFAULT_APP_URL;
+  // In production the auth redirect must never silently become localhost: fall back to the explicit public URL, then the
+  // platform's production host. (Local development keeps the localhost default.)
+  const production = source.NODE_ENV === "production";
+  const platform = stripHost(source.VERCEL_PROJECT_PRODUCTION_URL);
+  const appUrl =
+    source.NEXT_PUBLIC_APP_URL?.trim() ||
+    (production ? source.FARJI_PUBLIC_URL?.trim() || (platform ? `https://${platform}` : "") : "") ||
+    DEFAULT_APP_URL;
 
   try {
     const url = new URL(appUrl);

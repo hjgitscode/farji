@@ -266,6 +266,26 @@ specified in [BLOCKCHAIN_MODEL.md](BLOCKCHAIN_MODEL.md).
   request (no cache, so never stale) and a ProofPulse log replay is linear in the log; QR codes and links use `FARJI_PUBLIC_URL` or the
   request host; no live browser-wallet click-through has been run.
 
+## 5g. Deployment (Phases 14-15)
+
+- **No secrets in the repository or the browser.** A test scans every tracked file for private keys, mnemonics, service-role / JWT-shaped keys and
+  credentialed connection strings; another scans the production browser bundle (`.next/static`) for server variable names and values. The environment
+  validator reports a forbidden variable (private key, mnemonic, service-role) or a sensitive `NEXT_PUBLIC_` name as an error, by name only.
+- **The sync endpoint** (`/api/chain/sync`) is the only unauthenticated-looking entry point. It requires `FARJI_SYNC_TOKEN` (constant-time comparison),
+  refuses everything when the token is missing or short, brakes repeated wrong guesses per caller, returns no detail on failure (401 / 429 / 503) and
+  cannot send a transaction. Repeating it is harmless (conditional transitions; the mirror runs only at FINALIZED).
+- **The node is not trusted by configuration alone.** Before any chain read or write the server proves the RPC reports the configured chain id and that
+  code exists at the registry address; a wrong network or contract disables chain actions instead of reading it as if it were right. Sepolia accepts only
+  `finalized` finality; Ethereum mainnet and unknown chains are refused at configuration time.
+- **Deployment keys.** The Sepolia deployer is a throw-away wallet in an encrypted local keystore (git-ignored, hidden prompts, never in an environment
+  variable); the contract admin roles go to the configured public addresses, so the deployer holds no authority after deployment.
+- **Rate limiting is per instance only** (see D69): it brakes bursts against a warm instance and is not a distributed control. Unguessable references, identical
+  404s and the absence of listings are the primary defences against enumeration; platform firewall rules provide the global limit.
+- **Responses and errors.** All routes send `nosniff`, `X-Frame-Options: DENY`, a strict referrer policy, a restrictive permissions policy and HSTS. Wallet,
+  RPC and database failures are mapped to short sentences; raw messages, stack traces and addresses of services are never shown. A strict CSP remains a Phase 16 item.
+- **Known limits.** Custom SMTP, Supabase Site/Redirect URLs and the Vercel project are dashboard configuration that code cannot enforce (documented in
+  docs/DEPLOYMENT.md). Source verification of the contract on an explorer, the CSP and a full review are Phase 16.
+
 ---
 
 ## 6. Authentication

@@ -479,3 +479,15 @@ package stays CommonJS (no `"type": "module"`). `hardhat.config.ts` is loaded wi
   (`orgId`, `memberId`, `wallet`, `issuedAt`, `nonce`); the server recovers the signer and binds
   `IssuerKey.operatorMemberId` once.
 - **Scheduled sync**: `POST /api/chain/sync` guarded by `FARJI_SYNC_TOKEN`.
+
+### 15.4 Sepolia (Phase 15, ROADMAP D70-D72)
+- **Network and finality.** The only public network is Sepolia (chain id 11155111). `FARJI_FINALITY` must be `finalized` there: a transaction is FINALIZED only when
+  the node's `finalized` block is at or beyond the transaction's block (about 13 minutes after inclusion). CONFIRMED (mined) never produces an Anchor, Revocation,
+  IssuerKey, Organisation status change, `ANCHORED` credential or positive public state. `depth:N` is accepted for local nodes only and rejected at configuration time on Sepolia.
+- **Endpoint guard.** `server/chain/ready.ts` proves the configured RPC reports the configured chain id and that code exists at `FARJI_REGISTRY_ADDRESS` before
+  building, recording or syncing anything (cached for five minutes on success, never on failure).
+- **Deployment.** `npm run chain:deploy:sepolia` deploys `FarjiRegistry(adminDelay >= 86400, defaultAdmin, platformAdmin)` where both admins are public addresses from the
+  environment (the throw-away deployer holds nothing), reads back roles and bytecode, and prints `FARJI_CHAIN_ID`, `FARJI_REGISTRY_ADDRESS`, `FARJI_FINALITY`.
+  `npm run chain:check` re-verifies the wiring read-only. The contract is unchanged since Phase 8.
+- **Status.** Scripts and guards are tested against a real local node. As of this phase NO Sepolia deployment has been made (no RPC URL, funded deployer or wallet session was available), so
+  there is no deployed address to record; the live smoke sequence is in docs/DEPLOYMENT.md section 6.

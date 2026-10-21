@@ -35,6 +35,9 @@ export interface ChainRpc {
   getBlock(tag: BlockTag): Promise<RpcBlock | null>;
   getBlockNumber(): Promise<number>;
   getTransactionCount(address: string, tag: BlockTag): Promise<number>;
+  /** `eth_chainId` as the node itself reports it (the provider is configured with a chain id; this proves the node agrees). */
+  getChainId(): Promise<bigint>;
+  getCode(address: string): Promise<string>;
 }
 
 /** Adapts an ethers provider to ChainRpc (read-only). */
@@ -58,6 +61,8 @@ export function ethersRpc(provider: JsonRpcProvider): ChainRpc {
     },
     getBlockNumber: () => provider.getBlockNumber(),
     getTransactionCount: (address, tag) => provider.getTransactionCount(address, tag),
+    getChainId: async () => BigInt((await provider.send("eth_chainId", [])) as string),
+    getCode: (address) => provider.getCode(address),
   };
 }
 

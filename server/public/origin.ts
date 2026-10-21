@@ -1,16 +1,19 @@
 import { headers } from "next/headers";
+import { resolvePublicOrigin } from "@/lib/core/public-origin";
 
 /**
- * The site's public origin for share links and QR codes. `FARJI_PUBLIC_URL` (e.g. https://farji.example) wins; otherwise the
- * request's own host is used. It only affects the link shown to the person viewing the page.
+ * The site's public origin for share links and QR codes. `FARJI_PUBLIC_URL` is authoritative when configured; the request
+ * host is only a development fallback (see lib/core/public-origin.ts for the exact order).
  */
 export async function publicOrigin(): Promise<string> {
-  const configured = process.env.FARJI_PUBLIC_URL;
-  if (configured && /^https?:\/\/[^\s/]+$/.test(configured.replace(/\/$/, ""))) return configured.replace(/\/$/, "");
   const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
-  const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https");
-  return /^[A-Za-z0-9.\-:]+$/.test(host) ? `${proto}://${host}` : "http://localhost:3000";
+  return resolvePublicOrigin({
+    env: process.env,
+    production: process.env.NODE_ENV === "production",
+    host: h.get("host"),
+    forwardedHost: h.get("x-forwarded-host"),
+    forwardedProto: h.get("x-forwarded-proto"),
+  });
 }
 
 export const profilePath = (handle: string) => `/p/${handle}`;

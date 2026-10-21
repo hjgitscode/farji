@@ -1,0 +1,23 @@
+# Optional frequent chain sync. Vercel Hobby limits cron jobs to once a day; this calls the same token-protected endpoint
+# every 10 minutes for free. It does nothing unless the repository variable FARJI_SYNC_ENABLED is "true". It needs two
+# repository secrets: FARJI_APP_URL (the deployed site origin) and FARJI_SYNC_TOKEN (the same value as the Vercel
+# FARJI_SYNC_TOKEN). Neither is stored in the repository. Skip this file on a Vercel plan with frequent cron jobs.
+name: chain-sync
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    if: ${{ vars.FARJI_SYNC_ENABLED == 'true' }}
+    steps:
+      - name: Call the sync endpoint
+        env:
+          FARJI_APP_URL: ${{ secrets.FARJI_APP_URL }}
+          FARJI_SYNC_TOKEN: ${{ secrets.FARJI_SYNC_TOKEN }}
+        run: |
+          set -euo pipefail
+          status=$(curl -sS -o /tmp/out.json -w '%{http_code}' -X POST -H "authorization: Bearer ${FARJI_SYNC_TOKEN}" "${FARJI_APP_URL%/}/api/chain/sync")
+          cat /tmp/out.json; echo
+          test "$status" = "200"

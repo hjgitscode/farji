@@ -5,7 +5,10 @@ import { Alert, Card, EmptyState } from "@/components/ui";
 import { CopyLink } from "@/components/ui/CopyLink";
 import { QrCode } from "@/components/ui/QrCode";
 import { getDb } from "@/lib/database/client";
+import { TooManyRequests } from "@/components/public/Notices";
+import { RULES } from "@/lib/security/rate-limit";
 import { getPublicProfile } from "@/server/public/read";
+import { checkLimit, requestKey } from "@/server/security/limit";
 import { profilePath, publicOrigin } from "@/server/public/origin";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +29,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function PublicProfilePage({ params }: Props) {
   const { handle } = await params;
+  if (!checkLimit(RULES.publicRead, await requestKey()).allowed) return <TooManyRequests />;
   const profile = await getPublicProfile(getDb(), handle);
   // A private or unknown profile is the same page: nothing reveals which.
   if (!profile) notFound();

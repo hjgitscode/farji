@@ -53,6 +53,12 @@ export async function sendTransaction(account: string, tx: { to: string; data: s
 export function walletMessage(e: unknown): string {
   if (e instanceof WalletError) return e.message;
   const err = e as { code?: number; message?: string };
-  if (err?.code === 4001) return "The request was rejected in the wallet.";
-  return err?.message ? String(err.message).slice(0, 200) : "The wallet request failed.";
+  if (err?.code === 4001) return "You declined the request in your wallet. Nothing was sent.";
+  if (err?.code === -32002) return "Your wallet already has a request waiting. Open it, answer it, then try again.";
+  if (err?.code === 4900 || err?.code === 4901) return "Your wallet is disconnected from the network. Reconnect it and try again.";
+  const text = String(err?.message ?? "");
+  if (/insufficient funds/i.test(text)) return "The wallet does not have enough test ETH to pay the network fee.";
+  if (/user rejected|user denied/i.test(text)) return "You declined the request in your wallet. Nothing was sent.";
+  if (/revert|execution reverted/i.test(text)) return "The network rejected the transaction. Nothing changed; check the details and try again.";
+  return "The wallet request did not complete. Please try again.";
 }

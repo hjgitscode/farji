@@ -1,3 +1,4 @@
+import { LOCAL_CHAIN_IDS, PUBLIC_CHAIN_IDS } from "@/config/production-env";
 import { getEip712Config } from "@/server/issuance/config";
 
 // Server-only chain configuration. There is no default RPC, chain or registry: chain features are
@@ -30,5 +31,16 @@ export function getChainConfig(env: Record<string, string | undefined> = process
   const { chainId, verifyingContract } = getEip712Config(env);
   const rpcUrl = env.FARJI_RPC_URL;
   if (!rpcUrl || !/^https?:\/\//.test(rpcUrl)) throw new Error("FARJI_RPC_URL is not set to an http(s) URL; chain features are disabled");
-  return { rpcUrl, chainId, registry: verifyingContract, finality: parseFinality(env.FARJI_FINALITY) };
+  const finality = parseFinality(env.FARJI_FINALITY);
+  // Supported networks only. Ethereum mainnet is deliberately refused: FARJI is deployed to Sepolia (and local networks) only.
+  const id = Number(chainId);
+  if (!LOCAL_CHAIN_IDS.includes(id) && !PUBLIC_CHAIN_IDS.includes(id)) {
+    throw new Error("FARJI_CHAIN_ID is not a supported network (Sepolia 11155111 or a local network); chain features are disabled");
+  }
+  // On a public network a block counts as final only when the network says so. Depth-based finality (depth:0 especially) is for
+  // local nodes, where there is no finality tag; it must never be accepted for Sepolia.
+  if (PUBLIC_CHAIN_IDS.includes(id) && finality.mode !== "finalized") {
+    throw new Error('FARJI_FINALITY must be "finalized" on a public network; chain features are disabled');
+  }
+  return { rpcUrl, chainId, registry: verifyingContract, finality };
 }

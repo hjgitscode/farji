@@ -273,6 +273,13 @@ Admin's browser wallet → events synced → key history visible in Admin and Is
 - **Public:** `/p/[handle]`, `/verify`, `/verify/[credentialRef]` and `/verify/[credentialRef]/bundle`, served by
   `server/public/read.ts` over the same evidence loader and Phase 10 engine; no session is read.
 
+### 9.2 Hosting and operations (Phases 14-15)
+
+Hosted shape: Vercel (Next.js, Node runtime) + the existing Supabase project (Postgres through the pooler; Auth) + a standard Sepolia JSON-RPC endpoint read by the server.
+The browser wallet is the only signer. `config/production-env.ts` validates the environment, `instrumentation.ts` reports problems at start-up, `server/chain/ready.ts` proves the
+RPC and registry before use, `/api/chain/sync` (cron or manual) advances transactions, and `lib/core/public-origin.ts` decides share-link origins. Everything an operator must do by
+hand is in [DEPLOYMENT.md](DEPLOYMENT.md).
+
 ---
 
 ## 10. Technology stack
