@@ -26,8 +26,8 @@ Rules that apply to every phase are in [../CLAUDE.md](../CLAUDE.md).
 | 11 | Candidate professional UI | ✅ Complete (automated: dashboard, records, detail, import, profile and sharing; parser, DB, render and structural tests pass; no schema change; no browser click-through) |
 | 12 | Issuer/admin UI | ✅ Complete (automated: restyled pages over the Phase 5-9 services, history, confirmations; structural and DB tests pass; no live MetaMask click-through) |
 | 13 | Public profile and verification UX | ✅ Complete (automated: public profile, verifier, evidence bundle, QR/share, earlier-version note; DB, render and structural tests pass; rate limiting deferred to Phase 14) |
-| 14 | Cloud/database deployment | 🟡 Code, configuration, tests and docs complete (env validation, production URLs/cookies, sync cron, rate limiting, security headers, Vercel readiness, docs/DEPLOYMENT.md). NOT yet exercised on Vercel: creating the Vercel project, its environment and the Supabase dashboard settings (SMTP, redirect URLs) are manual steps |
-| 15 | Public EVM testnet deployment | 🟡 Prepared, NOT deployed: Sepolia-only deploy script with encrypted keystore, read-only check script, chain-endpoint guard and finality rules are built and tested against a real local node. No Sepolia RPC URL, funded deployer or MetaMask session was available, so there is no deployed address and no live smoke test yet |
+| 14 | Cloud/database deployment | ✅ Complete: deployed on Vercel (`https://farji.vercel.app`, production from `master`) against the existing Supabase project; Site/redirect URLs set; production health, DB, auth redirect, verifier and token-protected sync checked live. Deferred (Phase 16 / later): custom SMTP, leaked-password protection, `_prisma_migrations` RLS warning, CSP, WAF rules |
+| 15 | Public EVM testnet deployment | ✅ Complete: `FarjiRegistry` on Sepolia at `0xedd02dc8d15892df10e9d83f8fe7b9680ba2bef9`; live MetaMask smoke test passed end to end (organisation registered, issuer wallet authorised, wallet bound, credential signed, cohort anchored, all FINALIZED); the production public verifier derives `PERMANENT_VALID` with every check passing. Optional CONTINUING (ProofPulse) live example not run; EXPIRING verified by the engine tests |
 | 16 | Security review and testing | ⬜ Not started |
 | 17 | Final polish/documentation/demo preparation | ⬜ Not started |
 
@@ -276,8 +276,9 @@ Rules that apply to every phase are in [../CLAUDE.md](../CLAUDE.md).
   download, sync endpoint and import; hardened sync route (constant-time token, failed-guess brake, 503 without detail, `maxDuration`, idempotent);
   Vercel `vercel.json` cron + optional GitHub Action; security headers; friendly error pages and mapped infrastructure errors;
   `docs/DEPLOYMENT.md` (env matrix, Supabase, Vercel, Sepolia, smoke test, rollback).
-- **Not done / manual:** create the Vercel project and set its environment; Supabase dashboard (Site URL, redirect URL, custom SMTP credentials
-  that were not available); WAF/Firewall rate-limit rules (distributed limiting is the platform's job); a signed-in production click-through.
+- **Done live:** Vercel project `farji` with its Production environment, Supabase Site URL and redirect URL, signed-in production use by admin,
+  issuer and candidate accounts during the Phase 15 smoke test.
+- **Not done / deferred:** custom SMTP credentials; WAF/Firewall rate-limit rules (distributed limiting is the platform's job).
 
 ## Phase 15 — Public EVM testnet deployment
 - **Goal:** Deploy non-upgradeable `FarjiRegistry` to Sepolia; grant admin roles to
@@ -288,8 +289,17 @@ Rules that apply to every phase are in [../CLAUDE.md](../CLAUDE.md).
   `npm run chain:check` (read-only: chain id, code at address, bytecode match, admin role, `finalized` tag), runtime endpoint guard
   (`server/chain/ready.ts`: the RPC must report the configured chain and a contract must exist at the registry address), chain config that refuses
   mainnet/unknown networks and depth finality on Sepolia, user-facing wallet/RPC error mapping, and the live MetaMask smoke checklist.
-- **Blocked on external input (not faked):** a Sepolia RPC URL, a funded deployer wallet and a MetaMask session. Exact commands:
-  `docs/DEPLOYMENT.md` sections 4 and 6. Source verification on a block explorer needs an explorer API key and is not scripted.
+- **Done on Sepolia (2026-10-21/22; public chain facts only):**
+  - Registry `0xedd02dc8d15892df10e9d83f8fe7b9680ba2bef9`, deploy tx `0xa2cee1ad19e8556e4f7660937ef2ef553dfb6348b8e289968a61103b293f97b5` (block 11964566);
+    `npm run chain:check` passed; the deployer holds no authority; admin delay 86400 s. Production configured with chain id, registry, public RPC, admin wallet, `finalized`.
+  - Organisation registration `0x9da3d4d6b3758a7e71fde56d0cc6a6fd685a2fadccf5481cd8710c1af162ccd9` (block 11964829) -> FINALIZED -> organisation ACTIVE from the mirrored event.
+  - Issuer wallet authorisation `0xa1c3e2444266dd16b559732364230be4d84b9d31bc169acf51b46d86f54b2e5b` (block 11969981) -> FINALIZED -> IssuerKey mirrored; wallet bound by EIP-712.
+  - PERMANENT credential `0xadb1ab8e9837a49b0e8c0ed79b8058c2912ddd3c8e6245ad296d886a1d0634ba` signed (EIP-712, MetaMask), sealed in a one-leaf cohort batch,
+    anchored by `0x8e37f49074bd9680138d527038f4dd4598a9edbdb089e6c7d1be656c2e970e8f` (block 11970543, `CohortRootAnchored` epoch 1) -> FINALIZED -> Anchor, batch and credential mirrored.
+  - Production `/verify/<credentialId>` and `/bundle` (no session): `PERMANENT_VALID`, all checks PASS, bundle without salts, nonce or candidate identity.
+- **Not done:** block-explorer source verification (needs an explorer API key; not scripted); a live CONTINUING/ProofPulse example (optional).
+- **Smoke-test finding (not fixed, logged for later):** when the server refuses to build a transaction (e.g. an anchor already in progress), the wallet
+  button shows the generic "The wallet request did not complete" instead of the server's message; nothing reaches the wallet, so no duplicate is sent.
 
 ## Phase 16 — Security review and testing
 - **Goal:** Full SECURITY_MODEL §13 pass; authorisation matrix tests; contract static

@@ -152,6 +152,8 @@ Accounts: a candidate, an issuer and an admin (promote two accounts with the SQL
 5. As the candidate: add a record, request verification from the organisation. As the issuer: Requests > approve.
 6. Credentials > **Sign credential** (MetaMask shows the readable record). It moves to *Queue*.
 7. For a permanent/expiring record: Batches > **Close this batch**, then **Anchor this batch** (wallet B). For a current record: Current relationships > **Confirm current relationships**.
+   On Credentials, *Anchor* is only the progress label of a queued credential, not a button; **Anchor this batch** appears on Batches once the batch is closed.
+   Click it once: while that transaction is in progress a second click is refused by the server before the wallet opens (the page then shows a generic wallet message).
 
 **C. Chain**
 8. Activity: the anchor transaction goes *Pending* > *Recorded, not final* > *Final*. Until Final the candidate's record must still read *Verification in progress*.
@@ -161,7 +163,8 @@ Accounts: a candidate, an issuer and an admin (promote two accounts with the SQL
 10. Open the verification link in a private window: it shows the state and, under **View verification details**, Sepolia, the registry address and the transaction hash. Download the evidence JSON and confirm it holds no private fields.
 11. (Optional) End the relationship or revoke and confirm the public state changes only after that transaction is Final.
 
-Record the registry address, the organisation, the transaction hashes and the verifier URL in your own notes; this repository does not store them.
+Record the registry address, the organisation, the transaction hashes and the verifier URL in your own notes. The first live run (Phase 15, Sepolia)
+passed every step above except the optional step 11; its public chain facts are listed under Phase 15 in docs/ROADMAP.md.
 
 ## 7. Security notes
 
