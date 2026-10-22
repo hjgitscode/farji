@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { isInfrastructureError, toFail } from "@/server/chain/results";
 import { ChainMisconfiguredError, ensureChainReady, resetChainReadiness } from "@/server/chain/ready";
 import type { ChainConfig } from "@/server/chain/config";
-import { walletMessage, WalletError } from "@/components/wallet/wallet";
+import { refuse, ServerRefusal, walletMessage, WalletError } from "@/components/wallet/wallet";
 import { DomainError } from "@/server/candidate/errors";
 import { FakeRpc, REGISTRY } from "../fixtures/fake-rpc";
 
@@ -96,5 +96,36 @@ describe("wallet messages", () => {
   it("never echoes an unknown raw message", () => {
     expect(walletMessage({ message: "internal error at 0xdeadbeef /Users/me/secret.js" })).toBe("The wallet request did not complete. Please try again.");
     expect(walletMessage(undefined)).toBe("The wallet request did not complete. Please try again.");
+    expect(walletMessage(new Error("P2002 Unique constraint failed on the fields: (`txHash`)"))).toBe("The wallet request did not complete. Please try again.");
+  });
+
+  const caught = (fn: () => unknown): unknown => {
+    try {
+      fn();
+    } catch (e) {
+      return e;
+    }
+    throw new Error("expected a throw");
+  };
+
+  it("shows a server action's refusal instead of the generic wallet message (Phase 15 finding)", () => {
+    const e = caught(() => refuse("A transaction for this is already in progress."));
+    expect(e).toBeInstanceOf(ServerRefusal);
+    expect(walletMessage(e)).toBe("A transaction for this is already in progress.");
+    expect(walletMessage(caught(() => refuse("Cancelled. Nothing was sent.")))).toBe("Cancelled. Nothing was sent.");
+  });
+
+  it("shows exactly the sanitised text toFail produced on the server", () => {
+    for (const err of [new DomainError("CONFLICT", "This credential has already been signed."), new Error("connect ECONNREFUSED 10.0.0.1:5432 password=hunter2"), "raw"]) {
+      const fail = toFail(err);
+      expect(walletMessage(caught(() => refuse(fail.error)))).toBe(fail.error);
+    }
+    expect(toFail(new Error("relation \"User\" does not exist at /var/task/server.js")).error).toBe("Something went wrong. Please try again.");
+  });
+
+  it("falls back safely when a refusal is missing, not text or implausibly long", () => {
+    expect(walletMessage(caught(() => refuse(undefined)))).toBe("Something went wrong. Please try again.");
+    expect(walletMessage(caught(() => refuse({ stack: "x" })))).toBe("Something went wrong. Please try again.");
+    expect(walletMessage(caught(() => refuse("x".repeat(301))))).toBe("Something went wrong. Please try again.");
   });
 });

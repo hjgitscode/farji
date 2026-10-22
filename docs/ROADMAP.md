@@ -28,7 +28,7 @@ Rules that apply to every phase are in [../CLAUDE.md](../CLAUDE.md).
 | 13 | Public profile and verification UX | ✅ Complete (automated: public profile, verifier, evidence bundle, QR/share, earlier-version note; DB, render and structural tests pass; rate limiting deferred to Phase 14) |
 | 14 | Cloud/database deployment | ✅ Complete: deployed on Vercel (`https://farji.vercel.app`, production from `master`) against the existing Supabase project; Site/redirect URLs set; production health, DB, auth redirect, verifier and token-protected sync checked live. Deferred (Phase 16 / later): custom SMTP, leaked-password protection, `_prisma_migrations` RLS warning, CSP, WAF rules |
 | 15 | Public EVM testnet deployment | ✅ Complete: `FarjiRegistry` on Sepolia at `0xedd02dc8d15892df10e9d83f8fe7b9680ba2bef9`; live MetaMask smoke test passed end to end (organisation registered, issuer wallet authorised, wallet bound, credential signed, cohort anchored, all FINALIZED); the production public verifier derives `PERMANENT_VALID` with every check passing. Optional CONTINUING (ProofPulse) live example not run; EXPIRING verified by the engine tests |
-| 16 | Security review and testing | ⬜ Not started |
+| 16 | Security review and testing | ✅ Complete: Data API exposure of `_prisma_migrations` fixed by migration (applied to production), enforced CSP + headers, sign-in/sign-up brake, server refusals shown on wallet buttons, sync sweep status fix; contract (Slither + manual), application, secret (tree + history), DB index and chain-reliability reviews; findings in docs/PHASE16_SECURITY.md. Two human-only settings remain (GitHub sync secrets, Supabase leaked-password protection) |
 | 17 | Final polish/documentation/demo preparation | ⬜ Not started |
 
 ---
@@ -304,6 +304,19 @@ Rules that apply to every phase are in [../CLAUDE.md](../CLAUDE.md).
 ## Phase 16 — Security review and testing
 - **Goal:** Full SECURITY_MODEL §13 pass; authorisation matrix tests; contract static
   analysis; dependency and secret scans; findings fixed or documented.
+- **Delivered (2026-10-22; details, severities and evidence in docs/PHASE16_SECURITY.md):**
+  - S-01 (High) the public Supabase Data API could read and modify `_prisma_migrations`: migration `20261022180000_lock_down_data_api`
+    (RLS on `_prisma_migrations`; no `anon` / `authenticated` privilege in `public`), applied to production and verified (anonymous 401,
+    verifier still `PERMANENT_VALID`), guarded by a DB test.
+  - S-02 enforced Content-Security-Policy and full header set (`config/security-headers.ts`), verified on a production build in headless
+    Chrome with no violations; S-03 per-caller sign-in / sign-up brake; S-04 server refusals shown on wallet buttons (Phase 15 finding);
+    R-02 sync sweep reports the real status on RPC failure.
+  - Reviews with no change needed: `FarjiRegistry` (Slither 0.11.6 + manual: no material issue; no redeploy), application authorisation,
+    redirects, API, public surface and proof-bundle privacy, injection and logging, secrets in the tree and the full git history, DB
+    foreign-key/unused indexes against real queries, chain finality/idempotency/reorg/duplicate handling (`chain:check` passes).
+- **Not done / human-only:** enable the 10-minute GitHub sync workflow (repository secrets; Vercel Hobby cron is daily); Supabase
+  leaked-password protection (dashboard, plan-dependent). **Deferred:** nonce-based CSP, distributed (WAF) rate limiting, custom SMTP,
+  block-explorer source verification, ProofPulse index review with real data.
 
 ## Phase 17 — Final polish/documentation/demo preparation
 - **Goal:** UX polish, user-facing help text (no tutorial/demo pages in the product),

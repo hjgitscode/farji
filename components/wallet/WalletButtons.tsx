@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { btn } from "@/components/ui";
-import { connectWallet, sendTransaction, signTypedData, walletMessage } from "./wallet";
+import { connectWallet, refuse, sendTransaction, signTypedData, walletMessage } from "./wallet";
 
 // Thin client components around the server actions. Every value that matters (typed data, calldata,
 // targets) comes FROM the server action's result; the browser only returns account, signature, hash.
@@ -62,11 +62,11 @@ export function TxButton({ label, chainId, disabled, build, record }: Props & { 
           run(async () => {
             const account = await connectWallet(chainId);
             const built = await build();
-            if (!built.ok) throw new Error(built.error);
-            if (built.warnings.length > 0 && !window.confirm(built.warnings.join("\n\n"))) throw new Error("Cancelled.");
+            if (!built.ok) refuse(built.error);
+            if (built.warnings.length > 0 && !window.confirm(built.warnings.join("\n\n"))) refuse("Cancelled. Nothing was sent.");
             const hash = await sendTransaction(account, built);
             const recorded = await record(hash);
-            if (!recorded.ok) throw new Error(recorded.error);
+            if (!recorded.ok) refuse(recorded.error);
             return recorded.message;
           })
         }
@@ -100,10 +100,10 @@ export function SignButton({
           run(async () => {
             const account = await connectWallet(chainId);
             const prep = await prepare(account);
-            if (!prep.ok) throw new Error(prep.error);
+            if (!prep.ok) refuse(prep.error);
             const signature = await signTypedData(account, prep.walletTypedData);
             const done = await accept(signature, { account, issuedAt: prep.issuedAt, nonce: prep.nonce, effectiveAt: prep.effectiveAt });
-            if (!done.ok) throw new Error(done.error);
+            if (!done.ok) refuse(done.error);
             return done.message;
           })
         }
@@ -127,7 +127,7 @@ export function ActionButton({ label, disabled, action }: { label: string; disab
         onClick={() =>
           run(async () => {
             const res = await action();
-            if (!res.ok) throw new Error(res.error);
+            if (!res.ok) refuse(res.error);
             return res.message;
           })
         }

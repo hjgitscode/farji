@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { getDb } from "@/lib/database/client";
 import { loadActor } from "./authorize";
 import { getEnv } from "@/lib/core/env";
+import { RULES } from "@/lib/security/rate-limit";
+import { checkLimit, requestKey } from "@/server/security/limit";
 import { parseLoginForm, parseSignupForm, performSignup } from "./forms";
 import { getVerifiedAuthUserId } from "./identity";
 import { resolvePostLoginPath, ROLE_HOME } from "./paths";
@@ -14,8 +16,10 @@ export type AuthFormState = { error?: string; message?: string };
 const SIGN_IN_FAILED = "Invalid email or password.";
 const ACCOUNT_UNAVAILABLE = "This account cannot sign in. Contact support if you think this is a mistake.";
 const GENERIC_FAILURE = "Something went wrong. Please try again.";
+const TOO_MANY_ATTEMPTS = "Too many attempts. Wait a few minutes and try again.";
 
 export async function loginAction(_prev: AuthFormState, formData: FormData): Promise<AuthFormState> {
+  if (!checkLimit(RULES.signIn, await requestKey()).allowed) return { error: TOO_MANY_ATTEMPTS };
   const parsed = parseLoginForm(formData);
   if (!parsed.ok) return { error: parsed.error };
 
@@ -40,6 +44,7 @@ export async function loginAction(_prev: AuthFormState, formData: FormData): Pro
 }
 
 export async function signupAction(_prev: AuthFormState, formData: FormData): Promise<AuthFormState> {
+  if (!checkLimit(RULES.signUp, await requestKey()).allowed) return { error: TOO_MANY_ATTEMPTS };
   // Only email + password are read. Any `role` or other field in the request is ignored.
   const parsed = parseSignupForm(formData);
   if (!parsed.ok) return { error: parsed.error };

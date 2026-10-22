@@ -56,4 +56,11 @@ export const RULES = {
   /** Import preview / confirm, per signed-in candidate. */
   importPreview: { name: "import-preview", limit: 12, windowMs: 60_000 },
   importConfirm: { name: "import-confirm", limit: 10, windowMs: 60_000 },
+  /**
+   * Password sign-in attempts per client (Phase 16). Sign-in is called from FARJI's server, so Supabase's own per-IP limits
+   * see the platform's address rather than the caller's: this brake is the only per-caller one.
+   */
+  signIn: { name: "sign-in", limit: 10, windowMs: 5 * 60_000 },
+  /** Account creation per client (Phase 16), for the same reason. */
+  signUp: { name: "sign-up", limit: 5, windowMs: 10 * 60_000 },
 } as const satisfies Record<string, RateRule>;

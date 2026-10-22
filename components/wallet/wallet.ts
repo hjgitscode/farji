@@ -16,6 +16,21 @@ declare global {
 
 export class WalletError extends Error {}
 
+/**
+ * A refusal returned by a FARJI server action (`{ ok: false, error }`). Its text was already reduced to a safe,
+ * user-facing sentence on the server (`server/chain/results.ts` `toFail`), so it is shown as is - e.g. "A transaction
+ * for this is already in progress." - instead of being hidden behind the generic wallet message.
+ */
+export class ServerRefusal extends Error {}
+
+const MAX_REFUSAL_LENGTH = 300;
+
+/** Throws the server's refusal so the button shows it. */
+export function refuse(error: unknown): never {
+  const text = typeof error === "string" ? error.trim() : "";
+  throw new ServerRefusal(text && text.length <= MAX_REFUSAL_LENGTH ? text : "Something went wrong. Please try again.");
+}
+
 function ethereum(): Eip1193 {
   if (typeof window === "undefined" || !window.ethereum) throw new WalletError("No browser wallet was found. Install a wallet such as MetaMask, then try again.");
   return window.ethereum;
@@ -51,7 +66,7 @@ export async function sendTransaction(account: string, tx: { to: string; data: s
 }
 
 export function walletMessage(e: unknown): string {
-  if (e instanceof WalletError) return e.message;
+  if (e instanceof WalletError || e instanceof ServerRefusal) return e.message;
   const err = e as { code?: number; message?: string };
   if (err?.code === 4001) return "You declined the request in your wallet. Nothing was sent.";
   if (err?.code === -32002) return "Your wallet already has a request waiting. Open it, answer it, then try again.";

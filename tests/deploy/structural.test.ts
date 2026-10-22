@@ -120,7 +120,10 @@ describe("platform configuration", () => {
 
   it("every response carries baseline security headers and no framework banner", () => {
     const cfg = read("next.config.ts");
-    for (const h of ["X-Content-Type-Options", "X-Frame-Options", "Referrer-Policy", "Permissions-Policy", "Strict-Transport-Security"]) expect(cfg).toContain(h);
+    const headers = read("config/security-headers.ts");
+    for (const h of ["Content-Security-Policy", "X-Content-Type-Options", "X-Frame-Options", "Referrer-Policy", "Permissions-Policy", "Strict-Transport-Security"]) expect(headers).toContain(h);
+    expect(cfg).toContain("securityHeaders(");
+    expect(cfg).toMatch(/source: "\/:path\*"/);
     expect(cfg).toContain("poweredByHeader: false");
   });
 

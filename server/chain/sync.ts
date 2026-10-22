@@ -147,15 +147,16 @@ export async function syncPending(db: ChainDb, chain: Env, opts: { limit?: numbe
     where: { status: { in: ["PENDING", "CONFIRMED"] } },
     orderBy: [{ submittedAt: "asc" }, { id: "asc" }],
     take: opts.limit ?? 50,
-    select: { id: true },
+    select: { id: true, status: true },
   });
   const results: SyncResult[] = [];
-  for (const { id } of rows) {
+  for (const { id, status } of rows) {
     try {
       results.push(await syncTransaction(db, chain, id, { now: opts.now }));
     } catch (e) {
-      // One bad transaction (e.g. an authorisation not mirrored yet) must not stop the others; it is retried next pass.
-      results.push({ id, status: "CONFIRMED", changed: false, error: e instanceof Error ? e.message : "sync failed" });
+      // One bad transaction (e.g. an authorisation not mirrored yet, or an RPC error) must not stop the others; it is retried
+      // next pass. A failed pass changes nothing, so the row's status is the one it had before (PENDING or CONFIRMED).
+      results.push({ id, status, changed: false, error: e instanceof Error ? e.message : "sync failed" });
     }
   }
   return results;

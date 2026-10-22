@@ -1,21 +1,15 @@
 import type { NextConfig } from "next";
 import path from "node:path";
+import { securityHeaders } from "./config/security-headers";
 
-// Baseline response headers for every route. A strict Content-Security-Policy is deliberately not set here: Next.js inlines
-// scripts and styles, and a nonce-based policy needs per-request middleware work that belongs with the Phase 16 review.
-const securityHeaders = [
-  { key: "X-Content-Type-Options", value: "nosniff" },
-  { key: "X-Frame-Options", value: "DENY" },
-  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
-  { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
-];
+// Response headers for every route, including the Content-Security-Policy (see config/security-headers.ts).
+const headers = securityHeaders({ NODE_ENV: process.env.NODE_ENV, NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL });
 
 const nextConfig: NextConfig = {
   turbopack: { root: path.resolve(__dirname) },
   poweredByHeader: false,
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [{ source: "/:path*", headers }];
   },
 };
 

@@ -252,6 +252,23 @@ describe("BlockchainTransaction state machine", () => {
     expect(r.after).toBe(1);
   });
 
+  it("an RPC failure during a sweep leaves the row as it was and reports its real status (Phase 16)", async () => {
+    const r = await inRollback(async (tx) => {
+      const { admin, org } = await setup(tx);
+      const rpc = new FakeRpc();
+      const { row } = await chainTx(tx, rpc, { purpose: "REGISTER_ORGANISATION", targetType: "ORGANISATION", targetId: org.id, organisationId: org.id, initiator: admin.userId, mineAt: 90, logs: [eventLog("OrganisationRegistered", registerArgs(org.orgId))] });
+      rpc.getTransactionReceipt = async () => {
+        throw new Error("connect ECONNREFUSED 10.0.0.1:8545");
+      };
+      const sweep = (await syncPending(tx, envOf(rpc), { now: NOW })).filter((s) => s.id === row.id);
+      return { sweep, stored: await tx.blockchainTransaction.findUniqueOrThrow({ where: { id: row.id }, select: { status: true } }) };
+    });
+    expect(r.stored.status).toBe("PENDING");
+    expect(r.sweep).toHaveLength(1);
+    expect(r.sweep[0]).toMatchObject({ status: "PENDING", changed: false });
+    expect(r.sweep[0].error).toBeTruthy();
+  });
+
   it("txNonce is immutable and the status of a FINALIZED transaction can never change", async () => {
     await expect(
       inRollback(async (tx) => {

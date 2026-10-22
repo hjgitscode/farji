@@ -178,8 +178,30 @@ describe("rate limiting is an honest per-instance brake", () => {
   });
 
   it("covers the abuse-prone entry points", () => {
-    expect(Object.keys(RULES).sort()).toEqual(["bundle", "importConfirm", "importPreview", "publicRead", "syncAuthFailure", "syncCall", "verifyLookup"]);
+    expect(Object.keys(RULES).sort()).toEqual(["bundle", "importConfirm", "importPreview", "publicRead", "signIn", "signUp", "syncAuthFailure", "syncCall", "verifyLookup"]);
     expect(RULES.syncAuthFailure.limit).toBeLessThan(RULES.syncCall.limit);
+  });
+
+  it("brakes password guessing and account creation per caller (Phase 16)", () => {
+    expect(RULES.signIn.limit).toBeLessThanOrEqual(10);
+    expect(RULES.signIn.windowMs).toBeGreaterThanOrEqual(5 * 60_000);
+    expect(RULES.signUp.limit).toBeLessThan(RULES.signIn.limit);
+    const l = new RateLimiter();
+    const attempts = Array.from({ length: RULES.signIn.limit + 1 }, () => l.check(RULES.signIn, "attacker", 0).allowed);
+    expect(attempts.slice(0, -1).every(Boolean)).toBe(true);
+    expect(attempts.at(-1)).toBe(false);
+    expect(l.check(RULES.signIn, "someone-else", 0).allowed).toBe(true); // another caller is unaffected
+  });
+
+  it("the sign-in and sign-up actions apply the brake before contacting Supabase", async () => {
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync("lib/auth/actions.ts", "utf8");
+    const login = src.slice(src.indexOf("export async function loginAction"), src.indexOf("export async function signupAction"));
+    const signup = src.slice(src.indexOf("export async function signupAction"), src.indexOf("export async function signOutAction"));
+    expect(login.indexOf("RULES.signIn")).toBeGreaterThan(-1);
+    expect(login.indexOf("RULES.signIn")).toBeLessThan(login.indexOf("signInWithPassword"));
+    expect(signup.indexOf("RULES.signUp")).toBeGreaterThan(-1);
+    expect(signup.indexOf("RULES.signUp")).toBeLessThan(signup.indexOf("performSignup"));
   });
 
   it("believes proxy headers only on a platform that sets them, and never stores the address", () => {

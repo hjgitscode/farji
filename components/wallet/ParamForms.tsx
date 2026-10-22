@@ -5,7 +5,7 @@ import { useState } from "react";
 import { btn } from "@/components/ui";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import type { AcceptResult, BuildResult, PrepareResult, RecordResult } from "./WalletButtons";
-import { connectWallet, sendTransaction, signTypedData, walletMessage } from "./wallet";
+import { connectWallet, refuse, sendTransaction, signTypedData, walletMessage } from "./wallet";
 
 // Wallet forms that take ONE free parameter from the person (a wallet address, a date, a reason).
 // Everything else about the transaction/signature is built on the server.
@@ -76,11 +76,11 @@ export function ParamTxButton({
               const param = kind === "datetime" ? String(Math.floor(new Date(value).getTime() / 1000)) : value.trim();
               const account = await connectWallet(chainId);
               const built = await build({ [paramName]: param });
-              if (!built.ok) throw new Error(built.error);
-              if (built.warnings.length > 0 && !window.confirm(built.warnings.join("\n\n"))) throw new Error("Cancelled.");
+              if (!built.ok) refuse(built.error);
+              if (built.warnings.length > 0 && !window.confirm(built.warnings.join("\n\n"))) refuse("Cancelled. Nothing was sent.");
               const hash = await sendTransaction(account, built);
               const recorded = await record(hash);
-              if (!recorded.ok) throw new Error(recorded.error);
+              if (!recorded.ok) refuse(recorded.error);
               return recorded.message;
             });
   return (
@@ -136,10 +136,10 @@ export function EndRelationshipButton({
             run(async () => {
               const account = await connectWallet(chainId);
               const prep = await prepare(date);
-              if (!prep.ok) throw new Error(prep.error);
+              if (!prep.ok) refuse(prep.error);
               const signature = await signTypedData(account, prep.walletTypedData);
               const done = await accept(signature, { issuedAt: prep.issuedAt, nonce: prep.nonce, effectiveAt: prep.effectiveAt });
-              if (!done.ok) throw new Error(done.error);
+              if (!done.ok) refuse(done.error);
               return done.message;
             })
           }

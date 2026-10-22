@@ -56,9 +56,12 @@ Dashboard settings the application depends on (these cannot be changed from code
    emails to be slow or dropped; the application itself works either way. Do not paste SMTP credentials into the repository.
 4. **Database**: the app talks to Postgres through Prisma with `DATABASE_URL` (pooler). All FARJI tables have **row-level security
    enabled with no policies**, so the public Data API (anon key) can read nothing; the server reaches the data through its own
-   connection. Do not add policies. If you do not use the Data API at all, you may also disable it (Settings > API).
-5. **Migrations** are applied by you, not by the Vercel build: `npm run db:migrate` (uses `DIRECT_URL`). This phase adds **no** migration.
-6. **Backups**: confirm the project's backup / PITR setting matches your plan before real data arrives.
+   connection. Do not add policies. Since Phase 16 the migration `20261022180000_lock_down_data_api` also enables RLS on Prisma's
+   `_prisma_migrations` and removes every `anon` / `authenticated` privilege in `public` (an anonymous Data API call now gets 401).
+   If you do not use the Data API at all, you may also disable it (Settings > API).
+5. **Migrations** are applied by you, not by the Vercel build: `npm run db:migrate` (uses `DIRECT_URL`). Phase 16 added one (above).
+6. **Leaked-password protection** (Authentication > password security / attack protection): enable it if your plan offers it.
+7. **Backups**: confirm the project's backup / PITR setting matches your plan before real data arrives.
 
 **Provisioning issuer and admin accounts** (no UI yet; decision D33): everyone signs up as a CANDIDATE. To promote an account, copy its
 *UID* from Authentication > Users and run in the SQL editor (once per person):
@@ -82,11 +85,12 @@ Roles are read from this table only; nothing in Supabase metadata can grant one.
    Hobby fails the deployment. Set `CRON_SECRET` = `FARJI_SYNC_TOKEN`.
 4. For frequent sync without paying: the optional GitHub Action `.github/workflows/chain-sync.yml` calls the same endpoint every 10 minutes.
    Enable it by adding repository secrets `FARJI_APP_URL` and `FARJI_SYNC_TOKEN` and the repository variable `FARJI_SYNC_ENABLED=true`.
-   Users can also press **Check status** on any transaction at any time, which syncs it on demand.
+   Users can also press **Check status** on any transaction at any time, which syncs it on demand. **Recommended on Hobby**: without it,
+   a transaction becomes final in FARJI only at the daily run or when someone presses Check status.
 5. After the first deploy: open `/api/health`, `/verify`, sign up a test candidate, and read the Vercel function logs: on start the app prints
    `[farji:config]` lines naming any invalid setting (never a value).
 6. **Rate limiting.** The application includes a per-instance limiter on the verifier lookup, verifier/profile pages, evidence download, sync
-   endpoint (including failed-token attempts) and import. **It is not distributed**: each serverless instance counts separately and counters
+   endpoint (including failed-token attempts), import, and (Phase 16) password sign-in and sign-up. **It is not distributed**: each serverless instance counts separately and counters
    reset when an instance is recycled, so it only brakes bursts against a warm instance. Add platform rules for real protection: Vercel
    Firewall > Rate Limiting, e.g. `/api/chain/sync` 10/min per IP; `/verify*` and `/p/*` 60/min per IP; `/verify/*/bundle` 20/min per IP.
    Credential references are 32-byte unguessable values and private/unknown/malformed answer identically, so enumeration is not practical.
@@ -172,12 +176,16 @@ passed every step above except the optional step 11; its public chain facts are 
 - `FARJI_SYNC_TOKEN` is read only by the sync route; the endpoint compares in constant time, slows repeated wrong guesses and returns no detail.
 - Supabase session cookies are HttpOnly, SameSite=Lax and Secure in production. Every private page re-checks the role on the server.
 - The browser supplies only an account, a signature and a transaction hash; the server rebuilds and re-checks everything against its own RPC, which it first proves is the configured chain with a contract at the configured address.
-- Response headers include `X-Frame-Options: DENY`, `nosniff`, a strict referrer policy and HSTS. A strict CSP is left to the Phase 16 review.
+- Response headers (`config/security-headers.ts`) include an enforced Content-Security-Policy (own origin only, plus the Supabase project
+  origin for `connect-src`; no framing; `'unsafe-inline'` scripts kept for Next.js, nonce-based CSP deferred), `X-Frame-Options: DENY`,
+  `nosniff`, a strict referrer policy, a restrictive `Permissions-Policy`, `Cross-Origin-Opener-Policy: same-origin` and HSTS. If a future
+  feature needs another origin (an RPC from the browser, analytics, fonts), add it there deliberately. Findings: docs/PHASE16_SECURITY.md.
 
 ## 8. Rollback and redeploy
 
 - **Application**: Vercel > Deployments > *Instant Rollback* to the previous deployment. Configuration changes need a redeploy to take effect.
-- **Database**: migrations are additive and applied by hand; this phase has none. Take a Supabase backup before any later migration.
+- **Database**: migrations are additive and applied by hand. Take a Supabase backup before any later migration. The Phase 16 privilege
+  migration changes no data; to undo it, re-grant the roles in the SQL editor (not recommended: it re-opens the Data API).
 - **Sync**: if sync misbehaves, remove `FARJI_SYNC_TOKEN` (the endpoint then refuses everything); users can still press *Check status*.
 - **Wrong network or address**: the app refuses to read or build until `FARJI_CHAIN_ID`, `FARJI_RPC_URL` and `FARJI_REGISTRY_ADDRESS` agree; fix the variables and redeploy.
 - **Registry**: it cannot be upgraded; see section 4.
