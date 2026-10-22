@@ -1,176 +1,314 @@
 import { Icon } from "@/components/ui";
 
-// Small diagrams that show how FARJI proves a batch of credentials (CohortProof) and keeps ongoing relationships fresh (ProofPulse).
-// Illustration only: example labels, no live data, no claims about any real record.
+// Product visualisations that explain CohortProof and ProofPulse with two concrete examples. Illustration only: the names and numbers
+// are examples, no live data is read, and nothing here makes a claim about any real record.
 
-const box = "fill-white stroke-neutral-300";
-const label = "fill-neutral-700 font-sans";
+const FONT = "font-sans";
 
-function Step({ n, title, caption, children }: { n: number; title: string; caption: string; children: React.ReactNode }) {
+function Person({ x, y, on = false }: { x: number; y: number; on?: boolean }) {
   return (
-    <li className="flex min-w-0 flex-col rounded-md border border-neutral-200 bg-white">
-      <div className="flex items-center gap-2 border-b border-neutral-100 px-3 py-2">
-        <span className="flex size-5 items-center justify-center rounded-full bg-neutral-900 text-[0.65rem] font-semibold text-white">{n}</span>
-        <span className="text-sm font-semibold">{title}</span>
-      </div>
-      <div className="flex flex-1 items-center justify-center bg-neutral-50 px-2 py-3">{children}</div>
-      <p className="border-t border-neutral-100 px-3 py-2 text-xs text-neutral-600">{caption}</p>
-    </li>
+    <g transform={`translate(${x} ${y}) scale(1.2)`} className={on ? "fill-emerald-600" : "fill-neutral-300"}>
+      <circle cx="0" cy="-3" r="2.6" />
+      <path d="M-4.2 6a4.2 4.2 0 0 1 8.4 0z" />
+      {on ? <circle cx="0" cy="1" r="9" className="fill-none stroke-emerald-600" strokeWidth="1.5" /> : null}
+    </g>
   );
 }
 
 function Doc({ x, y, on = false }: { x: number; y: number; on?: boolean }) {
   return (
     <g>
-      <rect x={x} y={y} width="30" height="38" rx="3" className={on ? "fill-emerald-50 stroke-emerald-600" : box} />
-      <path d={`M${x + 6} ${y + 12}h18M${x + 6} ${y + 19}h18M${x + 6} ${y + 26}h10`} className="stroke-neutral-400" strokeWidth="1.5" strokeLinecap="round" />
-      <path d={`m${x + 19} ${y + 28} 3 3 5-6`} className="stroke-emerald-600" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x={x} y={y} width="54" height="66" rx="4" className={on ? "fill-emerald-50 stroke-emerald-600" : "fill-white stroke-neutral-300"} />
+      <path d={`M${x + 10} ${y + 16}h34M${x + 10} ${y + 26}h34M${x + 10} ${y + 36}h20`} className="stroke-neutral-300" strokeWidth="2" strokeLinecap="round" />
+      <path d={`m${x + 31} ${y + 50} 5 5 9-10`} className="stroke-emerald-600" strokeWidth="2.4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
     </g>
   );
 }
 
-/** CohortProof: signed records -> Merkle root (off-chain) -> anchored on-chain -> checked publicly. */
-export function CohortExplainer() {
+function Arrow({ x1, y1, x2, y2, className = "stroke-neutral-400" }: { x1: number; y1: number; x2: number; y2: number; className?: string }) {
+  const a = Math.atan2(y2 - y1, x2 - x1);
+  const h = (d: number) => `${x2 - 8 * Math.cos(a - d)},${y2 - 8 * Math.sin(a - d)}`;
   return (
-    <section aria-label="How a batch is proven" className="space-y-3">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-sm font-semibold">How a batch is proven</h2>
-        <p className="text-xs text-neutral-500">Example batch of four records</p>
+    <g className={className} fill="none" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d={`M${x1} ${y1}L${x2} ${y2}`} />
+      <path d={`M${h(0.45)}L${x2} ${y2}L${h(-0.45)}`} />
+    </g>
+  );
+}
+
+function Chip({ x, y, w, h = 30, text, tone }: { x: number; y: number; w: number; h?: number; text: string; tone: "ok" | "proof" | "root" | "plain" }) {
+  const cls = { ok: "fill-emerald-50 stroke-emerald-600", proof: "fill-amber-50 stroke-amber-500", root: "fill-emerald-700 stroke-emerald-700", plain: "fill-white stroke-neutral-300" }[tone];
+  return (
+    <g>
+      <rect x={x} y={y} width={w} height={h} rx="5" className={cls} />
+      <text x={x + w / 2} y={y + h / 2 + 4.5} textAnchor="middle" fontSize="12" fontWeight="600" className={`${tone === "root" ? "fill-white" : "fill-neutral-800"} ${FONT}`}>
+        {text}
+      </text>
+    </g>
+  );
+}
+
+function ExampleHeader({ title, sub }: { title: string; sub: string }) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-200 px-4 py-3 sm:px-5">
+      <div>
+        <h2 className="text-sm font-semibold text-neutral-900">{title}</h2>
+        <p className="text-xs text-neutral-500">{sub}</p>
       </div>
-      <ol className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Step n={1} title="Sign" caption="Each record is signed by your wallet.">
-          <svg viewBox="0 0 170 50" className="h-24 w-full max-w-[220px]" role="img" aria-label="Four signed records">
-            <Doc x={4} y={6} />
-            <Doc x={44} y={6} on />
-            <Doc x={84} y={6} />
-            <Doc x={124} y={6} />
-          </svg>
-        </Step>
+      <span className="rounded-md bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600">Example</span>
+    </div>
+  );
+}
 
-        <Step n={2} title="Batch" caption="Records are hashed into one Merkle root, off-chain.">
-          <svg viewBox="0 0 200 118" className="h-24 w-full max-w-[220px]" role="img" aria-label="A Merkle tree of four records with one root">
-            <g className="stroke-neutral-300" strokeWidth="1.2" fill="none">
-              <path d="M100 30 50 54M100 30 150 54M50 70 25 94M50 70 75 94M150 70 125 94M150 70 175 94" />
-            </g>
-            <path d="M100 30 50 54M50 70 75 94" className="stroke-emerald-600" strokeWidth="2" fill="none" />
-            <rect x="72" y="8" width="56" height="22" rx="4" className="fill-emerald-700" />
-            <text x="100" y="23" textAnchor="middle" fontSize="10" className="fill-white font-sans" fontWeight="600">
-              Root
-            </text>
-            <rect x="30" y="54" width="40" height="16" rx="3" className="fill-emerald-50 stroke-emerald-600" />
-            <rect x="130" y="54" width="40" height="16" rx="3" className="fill-amber-50 stroke-amber-500" />
-            {[25, 75, 125, 175].map((x, i) => (
-              <g key={x}>
-                <rect x={x - 17} y="94" width="34" height="16" rx="3" className={i === 1 ? "fill-emerald-50 stroke-emerald-600" : i === 0 ? "fill-amber-50 stroke-amber-500" : box} />
-                <text x={x} y="105.5" textAnchor="middle" fontSize="8" className={label}>
-                  R{i + 1}
-                </text>
-              </g>
+/** CohortProof: a graduating class becomes one Merkle root on-chain, and one student can still prove inclusion. */
+export function CohortExplainer() {
+  const leaves = Array.from({ length: 8 }, (_, i) => 358 + i * 36);
+  const l2 = [376, 448, 520, 592];
+  const l3 = [412, 556];
+  return (
+    <section aria-label="CohortProof example" className="overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-card">
+      <ExampleHeader title="CohortProof · VIT Chennai, Class of 2026" sub="100 students graduate. 100 signed degrees. One root on-chain." />
+      <div className="overflow-x-auto p-3 sm:p-4">
+        <svg viewBox="0 0 960 384" className="mx-auto w-full min-w-[820px] max-w-[1040px]" role="img" aria-label="100 students become 100 signed credentials, then a Merkle tree computed off-chain, then one Merkle root anchored on Sepolia. One student's proof path is highlighted.">
+          {/* zones */}
+          <rect x="10" y="12" width="650" height="252" rx="8" className="fill-neutral-50 stroke-neutral-300" strokeDasharray="5 4" />
+          <text x="26" y="34" fontSize="11" fontWeight="700" letterSpacing="1.2" className={`fill-neutral-500 ${FONT}`}>
+            OFF-CHAIN · credential hashes + Merkle tree
+          </text>
+          <rect x="676" y="12" width="274" height="252" rx="8" className="fill-emerald-50 stroke-emerald-600" />
+          <text x="692" y="34" fontSize="11" fontWeight="700" letterSpacing="1.2" className={`fill-emerald-800 ${FONT}`}>
+            ON-CHAIN · Merkle root only
+          </text>
+
+          {/* students */}
+          {Array.from({ length: 100 }, (_, i) => (
+            <Person key={i} x={38 + (i % 10) * 15} y={76 + Math.floor(i / 10) * 15} on={i === 37} />
+          ))}
+          <text x="112" y="240" textAnchor="middle" fontSize="13" fontWeight="600" className={`fill-neutral-800 ${FONT}`}>
+            100 students
+          </text>
+          <Arrow x1={190} y1={128} x2={218} y2={128} />
+
+          {/* credentials */}
+          <Doc x={232} y={92} />
+          <Doc x={242} y={102} />
+          <Doc x={252} y={112} on />
+          <text x="282" y="224" textAnchor="middle" fontSize="13" fontWeight="600" className={`fill-neutral-800 ${FONT}`}>
+            100 signed
+          </text>
+          <text x="282" y="240" textAnchor="middle" fontSize="13" fontWeight="600" className={`fill-neutral-800 ${FONT}`}>
+            degrees
+          </text>
+          <Arrow x1={324} y1={128} x2={346} y2={128} />
+
+          {/* merkle tree */}
+          <g className="stroke-neutral-300" strokeWidth="1.4" fill="none">
+            {leaves.map((x, i) => (
+              <path key={i} d={`M${x + 12} 190L${l2[Math.floor(i / 2)]} 178`} />
             ))}
-          </svg>
-        </Step>
-
-        <Step n={3} title="Anchor" caption="Only the root goes on-chain. No record content.">
-          <svg viewBox="0 0 200 60" className="h-24 w-full max-w-[220px]" role="img" aria-label="A chain of blocks with the latest holding the root">
-            {[8, 74, 140].map((x, i) => (
-              <g key={x}>
-                <rect x={x} y="10" width="52" height="40" rx="5" className={i === 2 ? "fill-emerald-700" : box} />
-                <text x={x + 26} y="28" textAnchor="middle" fontSize="8" className={i === 2 ? "fill-emerald-100 font-sans" : label}>
-                  {i === 2 ? "Root" : "Block"}
-                </text>
-                <text x={x + 26} y="41" textAnchor="middle" fontSize="7" className={i === 2 ? "fill-white font-mono" : "fill-neutral-400 font-mono"}>
-                  {i === 2 ? "0x938c…" : "0x…"}
-                </text>
-                {i < 2 ? <path d={`M${x + 52} 30h14`} className="stroke-neutral-400" strokeWidth="1.5" /> : null}
-              </g>
+            {l2.map((x, i) => (
+              <path key={i} d={`M${x} 160L${l3[Math.floor(i / 2)]} 148`} />
             ))}
-          </svg>
-        </Step>
+            {l3.map((x, i) => (
+              <path key={i} d={`M${x} 130L484 114`} />
+            ))}
+          </g>
+          <g className="stroke-emerald-600" strokeWidth="2.6" fill="none">
+            <path d={`M${leaves[2] + 12} 190L${l2[1]} 178M${l2[1]} 160L${l3[0]} 148M${l3[0]} 130L484 114`} />
+          </g>
+          {[l3[0], l3[1]].map((x, i) => (
+            <rect key={x} x={x - 17} y="130" width="34" height="18" rx="4" className={i === 0 ? "fill-emerald-100 stroke-emerald-600" : "fill-amber-50 stroke-amber-500"} />
+          ))}
+          {l2.map((x, i) => (
+            <rect key={x} x={x - 15} y="160" width="30" height="18" rx="4" className={i === 1 ? "fill-emerald-100 stroke-emerald-600" : i === 0 ? "fill-amber-50 stroke-amber-500" : "fill-white stroke-neutral-300"} />
+          ))}
+          {leaves.map((x, i) => (
+            <rect key={x} x={x} y="190" width="24" height="18" rx="4" className={i === 2 ? "fill-emerald-600 stroke-emerald-600" : i === 3 ? "fill-amber-50 stroke-amber-500" : "fill-white stroke-neutral-300"} />
+          ))}
+          <rect x="460" y="96" width="48" height="22" rx="5" className="fill-emerald-700" />
+          <text x="484" y="111.5" textAnchor="middle" fontSize="12" fontWeight="700" className={`fill-white ${FONT}`}>
+            Root
+          </text>
+          <text x="484" y="240" textAnchor="middle" fontSize="13" fontWeight="600" className={`fill-neutral-800 ${FONT}`}>
+            Merkle tree of 100 hashes
+          </text>
+          <text x="484" y="256" textAnchor="middle" fontSize="11" className={`fill-neutral-500 ${FONT}`}>
+            computed off-chain
+          </text>
 
-        <Step n={4} title="Check" caption="Anyone can recompute the root from a record and its proof.">
-          <svg viewBox="0 0 200 60" className="h-24 w-full max-w-[220px]" role="img" aria-label="A record plus its proof recompute the anchored root">
-            <rect x="4" y="18" width="36" height="24" rx="4" className="fill-emerald-50 stroke-emerald-600" />
-            <text x="22" y="33" textAnchor="middle" fontSize="8" className={label}>
-              Record
-            </text>
-            <text x="52" y="34" fontSize="12" className="fill-neutral-400 font-sans">
-              +
-            </text>
-            <rect x="64" y="18" width="36" height="24" rx="4" className="fill-amber-50 stroke-amber-500" />
-            <text x="82" y="33" textAnchor="middle" fontSize="8" className={label}>
-              Proof
-            </text>
-            <text x="108" y="34" fontSize="12" className="fill-neutral-400 font-sans">
-              =
-            </text>
-            <rect x="122" y="18" width="40" height="24" rx="4" className="fill-emerald-700" />
-            <text x="142" y="33" textAnchor="middle" fontSize="8" className="fill-white font-sans" fontWeight="600">
-              Root
-            </text>
-            <circle cx="182" cy="30" r="9" className="fill-emerald-600" />
-            <path d="m177.5 30 3 3 5-6" stroke="white" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </Step>
-      </ol>
+          {/* anchor */}
+          <Arrow x1={512} y1={107} x2={704} y2={107} className="stroke-emerald-700" />
+          <text x="608" y="98" textAnchor="middle" fontSize="11" fontWeight="600" className={`fill-emerald-800 ${FONT}`}>
+            only the root
+          </text>
+          <rect x="716" y="76" width="210" height="52" rx="6" className="fill-emerald-700" />
+          <text x="821" y="98" textAnchor="middle" fontSize="12" fontWeight="600" className={`fill-emerald-100 ${FONT}`}>
+            Merkle root
+          </text>
+          <text x="821" y="116" textAnchor="middle" fontSize="12" className="fill-white font-mono">
+            0x938c…e7775c
+          </text>
+          <Arrow x1={821} y1={130} x2={821} y2={158} className="stroke-emerald-700" />
+          <rect x="716" y="162" width="210" height="62" rx="6" className="fill-white stroke-emerald-600" strokeWidth="1.6" />
+          <circle cx="744" cy="193" r="11" className="fill-emerald-600" />
+          <path d="m738.5 193 4 4 7-8" stroke="white" strokeWidth="2.2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+          <text x="764" y="189" fontSize="13" fontWeight="700" className={`fill-neutral-900 ${FONT}`}>
+            Anchored on Sepolia
+          </text>
+          <text x="764" y="207" fontSize="12" className={`fill-emerald-800 ${FONT}`}>
+            Finalized
+          </text>
+
+          {/* proof strip */}
+          <rect x="10" y="284" width="940" height="92" rx="8" className="fill-white stroke-neutral-300" />
+          <text x="26" y="308" fontSize="11" fontWeight="700" letterSpacing="1.2" className={`fill-neutral-500 ${FONT}`}>
+            ONE STUDENT PROVES INCLUSION · no other student is revealed
+          </text>
+          <Chip x={26} y={324} w={150} text="Student 38's degree" tone="ok" />
+          <text x="190" y="344" textAnchor="middle" fontSize="16" className={`fill-neutral-400 ${FONT}`}>
+            +
+          </text>
+          <Chip x={206} y={324} w={46} text="h₁" tone="proof" />
+          <Chip x={260} y={324} w={46} text="h₂" tone="proof" />
+          <Chip x={314} y={324} w={46} text="h₃" tone="proof" />
+          <text x="378" y="345" textAnchor="middle" fontSize="14" className={`fill-neutral-400 ${FONT}`}>
+            …
+          </text>
+          <Chip x={396} y={324} w={46} text="h₇" tone="proof" />
+          <text x="462" y="344" textAnchor="middle" fontSize="16" className={`fill-neutral-400 ${FONT}`}>
+            =
+          </text>
+          <Chip x={482} y={324} w={74} text="Root" tone="root" />
+          <Arrow x1={564} y1={339} x2={606} y2={339} className="stroke-emerald-700" />
+          <circle cx="628" cy="339" r="11" className="fill-emerald-600" />
+          <path d="m622.5 339 4 4 7-8" stroke="white" strokeWidth="2.2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+          <text x="648" y="344" fontSize="13" fontWeight="600" className={`fill-neutral-900 ${FONT}`}>
+            matches the root on-chain
+          </text>
+        </svg>
+      </div>
     </section>
   );
 }
 
-/** ProofPulse: an ongoing relationship is current only while it keeps being re-confirmed. */
-export function PulseExplainer() {
-  // x positions on a 0-100 month axis (viewBox 0 0 640 130)
-  const x = (m: number) => 40 + m * 92;
+type LeafState = "current" | "ended" | "new" | "same";
+
+function MiniTree({ leaves, changed, rootLabel, rootNew }: { leaves: { label: string; state: LeafState }[]; changed: boolean[]; rootLabel: string; rootNew: boolean }) {
+  const xs = [30, 80, 130, 180];
+  const leafCls = (s: LeafState) => (s === "current" ? "fill-emerald-50 stroke-emerald-600" : s === "ended" ? "fill-neutral-200 stroke-neutral-400" : s === "new" ? "fill-amber-100 stroke-amber-500" : "fill-white stroke-neutral-300");
+  const ed = (on: boolean) => (on ? "stroke-amber-500" : "stroke-neutral-300");
   return (
-    <section aria-label="How current relationships stay fresh" className="space-y-3">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-sm font-semibold">How a current relationship stays fresh</h2>
-        <p className="text-xs text-neutral-500">Example: 45-day freshness window</p>
+    <svg viewBox="0 0 210 132" className="mx-auto w-full max-w-[250px]" role="img" aria-label={`Four employee leaves under one root ${rootLabel}`}>
+      <g fill="none" strokeWidth="1.6">
+        <path d="M30 98L55 66" className={ed(changed[0])} />
+        <path d="M80 98L55 66" className={ed(changed[1])} />
+        <path d="M130 98L155 66" className={ed(changed[2])} />
+        <path d="M180 98L155 66" className={ed(changed[3])} />
+        <path d="M55 66L105 36" className={ed(changed[0] || changed[1])} />
+        <path d="M155 66L105 36" className={ed(changed[2] || changed[3])} />
+      </g>
+      <rect x="40" y="56" width="30" height="16" rx="4" className={changed[0] || changed[1] ? "fill-amber-50 stroke-amber-500" : "fill-white stroke-neutral-300"} />
+      <rect x="140" y="56" width="30" height="16" rx="4" className={changed[2] || changed[3] ? "fill-amber-50 stroke-amber-500" : "fill-white stroke-neutral-300"} />
+      {leaves.map((l, i) => (
+        <g key={l.label}>
+          <rect x={xs[i] - 17} y="98" width="34" height="22" rx="5" className={leafCls(l.state)} strokeDasharray={l.state === "same" ? "3 3" : undefined} />
+          <text x={xs[i]} y="113" textAnchor="middle" fontSize="12" fontWeight="700" className={`${l.state === "ended" ? "fill-neutral-500" : "fill-neutral-800"} ${FONT}`} textDecoration={l.state === "ended" ? "line-through" : undefined}>
+            {l.label}
+          </text>
+        </g>
+      ))}
+      <rect x="77" y="12" width="56" height="24" rx="5" className={rootNew ? "fill-emerald-700" : "fill-white stroke-neutral-300"} strokeDasharray={rootNew ? undefined : "4 3"} />
+      <text x="105" y="28" textAnchor="middle" fontSize="12" fontWeight="700" className={`${rootNew ? "fill-white" : "fill-neutral-400"} ${FONT}`}>
+        {rootLabel}
+      </text>
+    </svg>
+  );
+}
+
+function MonthCard({ month, headline, children, tag, tagTone }: { month: string; headline: string; children: React.ReactNode; tag: string; tagTone: "ok" | "none" }) {
+  return (
+    <li className="flex min-w-0 flex-col overflow-hidden rounded-md border border-neutral-200 bg-white">
+      <div className="border-b border-neutral-100 px-4 py-2.5">
+        <p className="text-sm font-semibold">{month}</p>
+        <p className="text-xs text-neutral-500">{headline}</p>
       </div>
-      <div className="overflow-x-auto rounded-md border border-neutral-200 bg-white p-3">
-        <svg viewBox="0 0 640 130" className="mx-auto min-w-[520px] w-full max-w-[640px]" role="img" aria-label="A timeline: confirmed, fresh for 45 days, needs refresh, confirmed again, then ended">
-          {["Jan", "Feb", "Mar", "Apr", "May", "Jun"].map((m, i) => (
-            <g key={m}>
-              <path d={`M${x(i)} 62v10`} className="stroke-neutral-300" />
-              <text x={x(i)} y="88" textAnchor="middle" fontSize="11" className="fill-neutral-500 font-sans">
-                {m}
-              </text>
-            </g>
-          ))}
-          <rect x={x(0)} y="40" width={x(1.5) - x(0)} height="18" rx="3" className="fill-teal-600" />
-          <rect x={x(1.5)} y="40" width={x(2.6) - x(1.5)} height="18" rx="3" className="fill-amber-400" />
-          <rect x={x(2.6)} y="40" width={x(4.1) - x(2.6)} height="18" rx="3" className="fill-teal-600" />
-          <rect x={x(4.1)} y="40" width={x(5) - x(4.1)} height="18" rx="3" className="fill-neutral-400" />
-          {[
-            [0, "Confirmed"],
-            [2.6, "Confirmed again"],
-            [4.1, "Role ended"],
-          ].map(([m, t]) => (
-            <g key={t as string}>
-              <circle cx={x(m as number)} cy="49" r="7" className="fill-white stroke-neutral-900" strokeWidth="2" />
-              <text x={x(m as number)} y="26" textAnchor="middle" fontSize="11" className="fill-neutral-800 font-sans" fontWeight="600">
-                {t}
-              </text>
-            </g>
-          ))}
-          <g fontSize="11" className="font-sans">
-            <rect x="40" y="104" width="10" height="10" rx="2" className="fill-teal-600" />
-            <text x="56" y="113" className="fill-neutral-700">
-              Currently confirmed
-            </text>
-            <rect x="190" y="104" width="10" height="10" rx="2" className="fill-amber-400" />
-            <text x="206" y="113" className="fill-neutral-700">
-              Needs refresh (no recent confirmation)
-            </text>
-            <rect x="440" y="104" width="10" height="10" rx="2" className="fill-neutral-400" />
-            <text x="456" y="113" className="fill-neutral-700">
-              Ended (not a revocation)
-            </text>
-          </g>
-        </svg>
-        <p className="mt-2 flex items-center gap-1.5 text-xs text-neutral-500">
-          <Icon name="anchor" className="size-3.5" />
-          Each confirmation updates one leaf and is anchored; time passing alone never changes a record.
-        </p>
+      <div className="flex-1 space-y-3 p-4">{children}</div>
+      <div className={`flex items-center gap-2 border-t px-4 py-2.5 text-xs font-semibold ${tagTone === "ok" ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-neutral-200 bg-neutral-50 text-neutral-500"}`}>
+        <span className="text-[0.65rem] tracking-[0.12em]">{tagTone === "ok" ? "ON-CHAIN" : "NOTHING SENT"}</span>
+        <span className="font-medium">{tag}</span>
+      </div>
+    </li>
+  );
+}
+
+function Pill({ name, state }: { name: string; state: "current" | "ended" | "joined" }) {
+  const cls = state === "current" ? "border-emerald-300 bg-emerald-50 text-emerald-900" : state === "joined" ? "border-amber-400 bg-amber-50 text-amber-900" : "border-neutral-300 bg-neutral-100 text-neutral-500";
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-semibold ${cls}`}>
+      <Icon name="user" className="size-3.5" />
+      <span className={state === "ended" ? "line-through" : ""}>{name}</span>
+      <span className="font-normal">{state === "current" ? "current" : state === "ended" ? "ended" : "joined"}</span>
+    </span>
+  );
+}
+
+/** ProofPulse: only a change of state produces a new root. */
+export function PulseExplainer() {
+  return (
+    <section aria-label="ProofPulse example" className="overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-card">
+      <ExampleHeader title="ProofPulse · ExampleCo, 500 employees" sub="Current employment is re-confirmed by events, not by the calendar." />
+      <div className="space-y-4 p-4 sm:p-5">
+        <ol className="grid gap-3 lg:grid-cols-3">
+          <MonthCard month="January" headline="500 employees, all current" tag="Root 1 anchored" tagTone="ok">
+            <div className="flex flex-wrap gap-1.5">
+              <Pill name="A" state="current" />
+              <Pill name="B" state="current" />
+              <Pill name="C" state="current" />
+              <span className="self-center text-xs text-neutral-500">+ 497</span>
+            </div>
+            <div className="rounded-md border border-dashed border-neutral-300 bg-neutral-50 p-2">
+              <p className="px-1 text-[0.65rem] font-bold tracking-[0.12em] text-neutral-500">OFF-CHAIN · state tree</p>
+              <MiniTree leaves={[{ label: "A", state: "current" }, { label: "B", state: "current" }, { label: "C", state: "current" }, { label: "…", state: "same" }]} changed={[false, false, false, false]} rootLabel="Root 1" rootNew />
+            </div>
+          </MonthCard>
+
+          <MonthCard month="February" headline="Time passes. Nothing changes." tag="no new root" tagTone="none">
+            <div className="flex flex-wrap gap-1.5">
+              <Pill name="A" state="current" />
+              <Pill name="B" state="current" />
+              <Pill name="C" state="current" />
+              <span className="self-center text-xs text-neutral-500">+ 497</span>
+            </div>
+            <div className="rounded-md border border-dashed border-neutral-300 bg-neutral-50 p-2">
+              <p className="px-1 text-[0.65rem] font-bold tracking-[0.12em] text-neutral-500">OFF-CHAIN · state tree</p>
+              <MiniTree leaves={[{ label: "A", state: "same" }, { label: "B", state: "same" }, { label: "C", state: "same" }, { label: "…", state: "same" }]} changed={[false, false, false, false]} rootLabel="Root 1" rootNew={false} />
+            </div>
+          </MonthCard>
+
+          <MonthCard month="March" headline="C leaves. D joins. A and B unchanged." tag="Root 2 anchored" tagTone="ok">
+            <div className="flex flex-wrap gap-1.5">
+              <Pill name="A" state="current" />
+              <Pill name="B" state="current" />
+              <Pill name="C" state="ended" />
+              <Pill name="D" state="joined" />
+            </div>
+            <div className="rounded-md border border-dashed border-neutral-300 bg-neutral-50 p-2">
+              <p className="px-1 text-[0.65rem] font-bold tracking-[0.12em] text-neutral-500">OFF-CHAIN · only affected branches update</p>
+              <MiniTree leaves={[{ label: "A", state: "current" }, { label: "B", state: "current" }, { label: "C", state: "ended" }, { label: "D", state: "new" }]} changed={[false, false, true, true]} rootLabel="Root 2" rootNew />
+            </div>
+          </MonthCard>
+        </ol>
+
+        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3">
+          <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-emerald-900">
+            <span className="text-[0.65rem] font-bold tracking-[0.12em]">ON-CHAIN · root history</span>
+            <span className="rounded-md bg-emerald-700 px-2.5 py-1 text-white">Root 1</span>
+            <Icon name="arrow-right" className="size-4" />
+            <span className="rounded-md bg-emerald-700 px-2.5 py-1 text-white">Root 2</span>
+            <span className="text-xs font-medium text-emerald-800">each root links to the one before it</span>
+          </div>
+          <p className="text-sm font-medium text-neutral-800">ProofPulse is event-driven. Time passing alone does not create a new root.</p>
+        </div>
       </div>
     </section>
   );
