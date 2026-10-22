@@ -30,7 +30,7 @@ export function ConfirmDialog({
       <button type="button" disabled={disabled} onClick={() => ref.current?.showModal()} className={tone === "danger" ? btn.danger : btn.secondary}>
         {trigger}
       </button>
-      <dialog ref={ref} aria-label={title} className="w-[min(28rem,calc(100vw-2rem))] rounded-xl border border-neutral-200 p-0 shadow-xl backdrop:bg-black/40">
+      <dialog ref={ref} aria-label={title} className="w-[min(28rem,calc(100vw-2rem))] rounded-lg border border-neutral-200 p-0 shadow-xl backdrop:bg-black/40">
         <div className="space-y-3 p-5">
           <h2 className="text-lg font-semibold">{title}</h2>
           <div className="text-sm text-neutral-700">{body}</div>

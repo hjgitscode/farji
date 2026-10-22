@@ -39,7 +39,7 @@ const GLYPH_ICON: Record<StatePresentation["icon"], IconName> = { "✓": "check"
 export function StatusBadge({ presentation, className = "", size = "sm" }: { presentation: Pick<StatePresentation, "tone" | "badge" | "icon">; className?: string; size?: "sm" | "lg" }) {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full font-medium ring-1 ring-inset ${size === "lg" ? "px-3.5 py-1.5 text-sm" : "px-2.5 py-1 text-xs"} ${TONE[presentation.tone]} ${className}`}
+      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-md font-medium ring-1 ring-inset ${size === "lg" ? "px-3 py-1.5 text-sm" : "px-2 py-0.5 text-xs"} ${TONE[presentation.tone]} ${className}`}
     >
       <Icon name={GLYPH_ICON[presentation.icon]} className={size === "lg" ? "size-4" : "size-3.5"} strokeWidth={2.25} />
       {presentation.badge}
@@ -49,7 +49,7 @@ export function StatusBadge({ presentation, className = "", size = "sm" }: { pre
 
 export function Badge({ tone = "neutral", children, icon, className = "" }: { tone?: Tone; children: React.ReactNode; icon?: IconName; className?: string }) {
   return (
-    <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${TONE[tone]} ${className}`}>
+    <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${TONE[tone]} ${className}`}>
       {icon ? <Icon name={icon} className="size-3.5" strokeWidth={2.25} /> : null}
       {children}
     </span>
@@ -70,7 +70,7 @@ export function PageHeader({ title, description, actions, eyebrow }: { title: st
     <div className="mb-7 flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
       <div className="min-w-0 space-y-1.5">
         {eyebrow ? <p className="text-xs font-semibold uppercase tracking-[0.12em] text-emerald-700">{eyebrow}</p> : null}
-        <h1 className="text-[1.65rem] font-semibold leading-tight tracking-tight text-neutral-900">{title}</h1>
+        <h1 className="text-xl font-semibold leading-tight tracking-tight text-neutral-900 sm:text-2xl">{title}</h1>
         {description ? <p className="max-w-2xl text-sm leading-relaxed text-neutral-600">{description}</p> : null}
       </div>
       {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
@@ -90,7 +90,7 @@ export function Card({
   interactive?: boolean;
 }) {
   return (
-    <Tag className={`rounded-xl border border-neutral-200 bg-white p-4 shadow-card sm:p-5 ${interactive ? "transition duration-150 hover:-translate-y-px hover:border-neutral-300 hover:shadow-lift" : ""} ${className}`}>
+    <Tag className={`rounded-lg border border-neutral-200 bg-white p-4 shadow-card sm:p-5 ${interactive ? "transition duration-150 hover:-translate-y-px hover:border-neutral-300 hover:shadow-lift" : ""} ${className}`}>
       {children}
     </Tag>
   );
@@ -99,7 +99,7 @@ export function Card({
 /** A card with its own header row (title, optional description and action) and a body. */
 export function Panel({ title, description, action, children, className = "" }: { title: string; description?: React.ReactNode; action?: React.ReactNode; children: React.ReactNode; className?: string }) {
   return (
-    <section className={`overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-card ${className}`}>
+    <section className={`overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-card ${className}`}>
       <header className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-100 px-4 py-3.5 sm:px-5">
         <div className="min-w-0">
           <h2 className="text-sm font-semibold text-neutral-900">{title}</h2>
@@ -147,19 +147,15 @@ export function Stat({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-xs font-medium text-neutral-500">{label}</p>
-          <p className="mt-1.5 text-[1.75rem] font-semibold leading-none tracking-tight tabular-nums text-neutral-900">{value}</p>
+          <p className="mt-1.5 text-2xl font-semibold leading-none tracking-tight tabular-nums text-neutral-900">{value}</p>
           {hint ? <p className="mt-1.5 text-xs text-neutral-500">{hint}</p> : null}
         </div>
-        {icon ? (
-          <span className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${TONE_ICON[tone]}`}>
-            <Icon name={icon} className="size-[1.1rem]" />
-          </span>
-        ) : null}
+        {icon ? <Icon name={icon} className={`size-[1.1rem] ${tone === "neutral" ? "text-neutral-400" : TONE_ICON[tone].split(" ").filter((c) => c.startsWith("text-")).join(" ")}`} /> : null}
       </div>
     </Card>
   );
   return href ? (
-    <Link href={href} className="block h-full rounded-xl focus-visible:outline-2">
+    <Link href={href} className="block h-full rounded-lg focus-visible:outline-2">
       {inner}
     </Link>
   ) : (
@@ -175,7 +171,7 @@ export function Alert({ tone = "info", children, title }: { tone?: "info" | "suc
     error: { box: "border-rose-300 bg-rose-50 text-rose-950", icon: "text-rose-600", name: "x" as IconName },
   }[tone];
   return (
-    <div role={tone === "error" ? "alert" : "status"} className={`flex gap-3 rounded-xl border px-4 py-3 text-sm ${cfg.box}`}>
+    <div role={tone === "error" ? "alert" : "status"} className={`flex gap-3 rounded-lg border px-4 py-3 text-sm ${cfg.box}`}>
       <Icon name={cfg.name} className={`mt-0.5 size-4 ${cfg.icon}`} strokeWidth={2.25} />
       <div className="min-w-0 space-y-0.5">
         {title ? <p className="font-semibold">{title}</p> : null}
@@ -187,7 +183,7 @@ export function Alert({ tone = "info", children, title }: { tone?: "info" | "suc
 
 export function EmptyState({ title, children, action, icon = "inbox" }: { title: string; children?: React.ReactNode; action?: React.ReactNode; icon?: IconName }) {
   return (
-    <div className="rounded-xl border border-dashed border-neutral-300 bg-white/60 px-6 py-10 text-center">
+    <div className="rounded-lg border border-dashed border-neutral-300 bg-white/60 px-6 py-10 text-center">
       <span className="mx-auto flex size-11 items-center justify-center rounded-full bg-neutral-100 text-neutral-500">
         <Icon name={icon} className="size-5" />
       </span>
@@ -199,7 +195,7 @@ export function EmptyState({ title, children, action, icon = "inbox" }: { title:
 }
 
 const BTN_BASE =
-  "inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex items-center justify-center gap-2 rounded-md px-3.5 py-2 text-sm font-medium transition duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
 
 export const btn = {
   primary: `${BTN_BASE} bg-emerald-700 text-white shadow-sm hover:bg-emerald-800 active:bg-emerald-900 focus-visible:outline-emerald-700`,
@@ -210,11 +206,11 @@ export const btn = {
 } as const;
 
 export const inputClass =
-  "w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 shadow-sm placeholder:text-neutral-400 transition focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20 disabled:bg-neutral-100";
+  "w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 transition focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20 disabled:bg-neutral-100";
 
 export function TabNav({ items, current }: { items: { href: string; label: string; key: string }[]; current: string }) {
   return (
-    <nav aria-label="Sections" className="mb-5 inline-flex max-w-full flex-wrap gap-1 rounded-xl border border-neutral-200 bg-white p-1 shadow-card">
+    <nav aria-label="Sections" className="mb-5 inline-flex max-w-full flex-wrap gap-1 rounded-lg border border-neutral-200 bg-white p-1 shadow-card">
       {items.map((i) => (
         <Link
           key={i.key}
@@ -248,7 +244,7 @@ export function Facts({ items }: { items: [string, React.ReactNode][] }) {
 /** Technical detail behind a disclosure. Collapsed by default. */
 export function Disclosure({ summary, children, className = "", tone = "card", defaultOpen = false }: { summary: React.ReactNode; children: React.ReactNode; className?: string; tone?: "card" | "plain"; defaultOpen?: boolean }) {
   return (
-    <details open={defaultOpen || undefined} className={`group ${tone === "card" ? "rounded-xl border border-neutral-200 bg-white shadow-card" : ""} ${className}`}>
+    <details open={defaultOpen || undefined} className={`group ${tone === "card" ? "rounded-lg border border-neutral-200 bg-white shadow-card" : ""} ${className}`}>
       <summary
         className={`flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium text-neutral-800 transition hover:text-neutral-950 [&::-webkit-details-marker]:hidden ${tone === "card" ? "px-4 py-3" : "py-1"}`}
       >
@@ -267,7 +263,7 @@ export function Mono({ children, className = "" }: { children: React.ReactNode; 
 
 /** A divided list container (rows are `<li>`s that bring their own padding). */
 export function RowList({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <ul className={`divide-y divide-neutral-100 overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-card ${className}`}>{children}</ul>;
+  return <ul className={`divide-y divide-neutral-100 overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-card ${className}`}>{children}</ul>;
 }
 
 export type StepState = "done" | "current" | "todo";

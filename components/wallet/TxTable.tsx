@@ -1,5 +1,5 @@
-import { Badge, EmptyState, Icon, Mono, StatusPill } from "@/components/ui";
-import { explorerTxUrl, formatDateTime, NETWORK_NAME } from "@/lib/format";
+import { EmptyState, Icon, Mono, StatusPill } from "@/components/ui";
+import { explorerTxUrl, formatDateTime } from "@/lib/format";
 import { TX_STATUS } from "@/lib/ui/status";
 import { ActionButton, type AcceptResult } from "./WalletButtons";
 
@@ -36,44 +36,58 @@ const NETWORK_ID = process.env.FARJI_CHAIN_ID ?? "";
 export function TxTable({ rows, sync }: { rows: TxRow[]; sync: (txId: string) => Promise<AcceptResult> }) {
   if (rows.length === 0) return <EmptyState title="No activity yet" icon="activity">Registrations, signing, anchoring and revocations appear here as soon as they are sent from a wallet.</EmptyState>;
   return (
-    <ul className="divide-y divide-neutral-100 overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-card">
-      {rows.map((r) => {
-        const s = TX_STATUS[r.status] ?? { tone: "neutral" as const, label: r.status, note: "", icon: "circle" as const };
-        const explorer = explorerTxUrl(NETWORK_ID, r.txHash);
-        const open = r.status === "PENDING" || r.status === "CONFIRMED";
-        return (
-          <li key={r.id} className="space-y-2.5 px-4 py-4 sm:px-5">
-            <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-              <div className="min-w-0 space-y-0.5">
-                <p className="font-semibold text-neutral-900">{PURPOSE[r.purpose] ?? r.purpose.toLowerCase().replaceAll("_", " ")}</p>
-                <p className="text-xs text-neutral-500">
-                  {r.organisation?.displayName ? `${r.organisation.displayName} · ` : ""}Submitted {formatDateTime(r.submittedAt)}
-                  {r.finalizedAt ? ` · final ${formatDateTime(r.finalizedAt)}` : ""}
-                </p>
-              </div>
-              <StatusPill display={s} />
-            </div>
-            <p className="text-sm text-neutral-600">{s.note}</p>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-neutral-500">
-              <span className="inline-flex items-center gap-1.5">
-                Transaction <Mono>{short(r.txHash)}</Mono>
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                Wallet <Mono>{short(r.fromAddress)}</Mono>
-              </span>
-              {r.blockNumber !== null ? <Badge>Block {r.blockNumber.toString()}</Badge> : null}
-              {explorer ? (
-                <a href={explorer} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium text-emerald-800 underline decoration-emerald-300 underline-offset-4 hover:text-emerald-900">
-                  View on {NETWORK_NAME[NETWORK_ID] ?? "explorer"}
-                  <Icon name="external" className="size-3" />
-                </a>
-              ) : null}
-            </div>
-            {r.failureReason ? <p className="text-sm text-rose-700">{r.failureReason}</p> : null}
-            {open ? <ActionButton label="Check status" icon="refresh" action={sync.bind(null, r.id)} /> : null}
-          </li>
-        );
-      })}
-    </ul>
+    <div className="overflow-x-auto rounded-lg border border-neutral-200 bg-white shadow-card">
+      <table className="w-full min-w-[720px] text-left text-sm">
+        <thead className="border-b border-neutral-200 bg-neutral-50 text-xs font-medium uppercase tracking-wide text-neutral-500">
+          <tr>
+            <th scope="col" className="px-4 py-2.5">Activity</th>
+            <th scope="col" className="px-4 py-2.5">Status</th>
+            <th scope="col" className="px-4 py-2.5">Transaction</th>
+            <th scope="col" className="px-4 py-2.5">Submitted</th>
+            <th scope="col" className="px-4 py-2.5"><span className="sr-only">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-neutral-100 align-top">
+          {rows.map((r) => {
+            const s = TX_STATUS[r.status] ?? { tone: "neutral" as const, label: r.status, note: "", icon: "circle" as const };
+            const explorer = explorerTxUrl(NETWORK_ID, r.txHash);
+            const open = r.status === "PENDING" || r.status === "CONFIRMED";
+            return (
+              <tr key={r.id}>
+                <td className="px-4 py-3">
+                  <p className="font-semibold text-neutral-900">{PURPOSE[r.purpose] ?? r.purpose.toLowerCase().replaceAll("_", " ")}</p>
+                  {r.organisation?.displayName ? <p className="text-xs text-neutral-500">{r.organisation.displayName.trim()}</p> : null}
+                  {r.failureReason ? <p className="mt-1 text-xs text-rose-700">{r.failureReason}</p> : null}
+                </td>
+                <td className="px-4 py-3">
+                  <StatusPill display={s} />
+                  <p className="mt-1 max-w-[16rem] text-xs text-neutral-500">{s.note}</p>
+                </td>
+                <td className="space-y-1 px-4 py-3 text-xs text-neutral-500">
+                  <p>
+                    <Mono>{short(r.txHash)}</Mono>
+                  </p>
+                  <p>
+                    From <Mono>{short(r.fromAddress)}</Mono>
+                    {r.blockNumber !== null ? ` · block ${r.blockNumber.toString()}` : ""}
+                  </p>
+                  {explorer ? (
+                    <a href={explorer} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium text-emerald-800 hover:underline">
+                      View on explorer
+                      <Icon name="external" className="size-3" />
+                    </a>
+                  ) : null}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3 text-xs text-neutral-500">
+                  {formatDateTime(r.submittedAt)}
+                  {r.finalizedAt ? <span className="block">Final {formatDateTime(r.finalizedAt)}</span> : null}
+                </td>
+                <td className="px-4 py-3 text-right">{open ? <ActionButton label="Check status" icon="refresh" action={sync.bind(null, r.id)} /> : null}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }

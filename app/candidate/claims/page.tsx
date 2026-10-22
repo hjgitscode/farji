@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { RecordCard } from "@/components/candidate/RecordCard";
+import { RecordRow } from "@/components/candidate/RecordRow";
 import { Alert, btn, EmptyState, PageHeader, TabNav } from "@/components/ui";
 import { requireCandidate } from "@/lib/auth/guards";
 import { CATEGORY_PLURAL } from "@/lib/format";
@@ -29,7 +29,7 @@ export default async function ClaimsPage({ searchParams }: { searchParams: Promi
     <div>
       <PageHeader
         title={filter === "ALL" ? "My records" : CATEGORY_PLURAL[filter]}
-        description="Each record shows where it stands today. Only an organisation's confirmation makes a record verified."
+        description="Each record shows where it stands today."
         actions={
           <>
             <Link href="/candidate/import" className={btn.secondary}>
@@ -48,9 +48,9 @@ export default async function ClaimsPage({ searchParams }: { searchParams: Promi
           {filter === "ALL" ? "You have not added any records yet." : "You have no records in this section yet."}
         </EmptyState>
       ) : (
-        <ul className="grid gap-3 md:grid-cols-2">
+        <ul className="divide-y divide-neutral-100 rounded-lg border border-neutral-200 bg-white px-5 py-4 shadow-card sm:px-6">
           {shown.map((r) => (
-            <RecordCard key={r.claimId} record={r} available={available} />
+            <RecordRow key={r.claimId} record={r} available={available} />
           ))}
         </ul>
       )}

@@ -20,7 +20,7 @@ export default async function IssuerWalletPage() {
       <div className="space-y-5">
         {mine ? (
           <Card className="flex flex-wrap items-center gap-4 border-emerald-200 bg-gradient-to-br from-white to-emerald-50/50">
-            <span className="flex size-12 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+            <span className="flex size-12 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
               <Icon name="shield-check" className="size-6" />
             </span>
             <div className="min-w-0 flex-1">

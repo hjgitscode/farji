@@ -49,7 +49,7 @@ function FormError({ message }: { message?: string }) {
 export function ApproveForm({ action }: { action: Action }) {
   const [state, formAction, pending] = useActionState<ReviewFormState, FormData>(action, {});
   return (
-    <form action={formAction} className="space-y-4 rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 sm:p-5" noValidate>
+    <form action={formAction} className="space-y-4 rounded-lg border border-emerald-200 bg-emerald-50/50 p-4 sm:p-5" noValidate>
       <div>
         <h3 className="flex items-center gap-2 font-semibold text-emerald-900">
           <Icon name="check" className="size-4" strokeWidth={2.5} />
@@ -76,7 +76,7 @@ export function ApproveForm({ action }: { action: Action }) {
 export function RejectForm({ action }: { action: Action }) {
   const [state, formAction, pending] = useActionState<ReviewFormState, FormData>(action, {});
   return (
-    <form action={formAction} className="space-y-4 rounded-xl border border-neutral-200 bg-white p-4 sm:p-5" noValidate>
+    <form action={formAction} className="space-y-4 rounded-lg border border-neutral-200 bg-white p-4 sm:p-5" noValidate>
       <div>
         <h3 className="flex items-center gap-2 font-semibold text-neutral-900">
           <Icon name="x" className="size-4" strokeWidth={2.5} />

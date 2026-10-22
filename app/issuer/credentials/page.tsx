@@ -73,14 +73,14 @@ export default async function IssuerCredentialsPage() {
                   <p className="text-sm text-neutral-600">{c.revocation ? `Revoked: ${c.revocation.reasonCode.toLowerCase().replaceAll("_", " ")}.` : display?.note}</p>
 
                   {chainId && c.pipelineStatus === "AWAITING_SIGNATURE" ? (
-                    <div className="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">
+                    <div className="space-y-3 rounded-lg border border-emerald-200 bg-emerald-50/60 p-4">
                       <p className="text-sm text-neutral-800">You are confirming that this record matches your organisation&apos;s records. Your wallet will show the readable record to sign. Signing is free and sends nothing to the network.</p>
                       <SignButton label="Sign credential" icon="pen" chainId={chainId} prepare={prepareSigningAction.bind(null, c.id)} accept={acceptSigningAction.bind(null, c.id)} />
                     </div>
                   ) : null}
 
                   {c.pipelineStatus === "SIGNED" || c.pipelineStatus === "QUEUED_FOR_ANCHOR" ? (
-                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-neutral-200 bg-neutral-50 p-4">
                       <p className="text-sm text-neutral-700">
                         <span className="font-medium text-neutral-900">Next:</span> close the open batch, then anchor it. Both buttons are on the Batches page.
                       </p>
@@ -105,7 +105,7 @@ export default async function IssuerCredentialsPage() {
                   ) : null}
 
                   {chainId && c.pipelineStatus !== "AWAITING_SIGNATURE" && !c.revocation ? (
-                    <details className="rounded-xl border border-rose-200 bg-rose-50/40 p-3 text-sm">
+                    <details className="rounded-lg border border-rose-200 bg-rose-50/40 p-3 text-sm">
                       <summary className="cursor-pointer font-medium text-rose-900">Revoke this credential…</summary>
                       <div className="mt-3 space-y-3">
                         <p className="text-neutral-800">Revocation indicates that the credential itself should no longer be relied upon. Ending a current role is not revocation.</p>

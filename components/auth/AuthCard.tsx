@@ -4,8 +4,8 @@ import { Icon, type IconName } from "@/components/ui";
 export function AuthCard({ title, description, icon = "lock", children, footer }: { title: string; description?: React.ReactNode; icon?: IconName; children: React.ReactNode; footer?: React.ReactNode }) {
   return (
     <div className="mx-auto w-full max-w-md py-4 sm:py-10">
-      <div className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-lift sm:p-8">
-        <span className="flex size-11 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+      <div className="rounded-xl border border-neutral-200 bg-white p-6 shadow-lift sm:p-8">
+        <span className="flex size-11 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
           <Icon name={icon} className="size-5" />
         </span>
         <h1 className="mt-4 text-2xl font-semibold tracking-tight">{title}</h1>

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { createOrganisationAction } from "@/app/admin/actions";
-import { Alert, Badge, btn, Disclosure, EmptyState, Icon, inputClass, PageHeader, RowList } from "@/components/ui";
+import { Alert, Badge, btn, Disclosure, EmptyState, Icon, inputClass, PageHeader } from "@/components/ui";
 import { requireAdmin } from "@/lib/auth/guards";
 import { getDb } from "@/lib/database/client";
 import { ORG_STATUS } from "@/lib/ui/status";
@@ -18,7 +18,7 @@ export default async function AdminOrganisationsPage({ searchParams }: { searchP
 
   return (
     <div>
-      <PageHeader title="Organisations" description="Employers, universities and licensing bodies that can confirm records." />
+      <PageHeader title="Organisations" description="Institutions that can confirm records." />
 
       <div className="space-y-6">
         <Disclosure summary={<span className="inline-flex items-center gap-2"><Icon name="plus" className="size-4 text-emerald-700" />Add an organisation</span>} defaultOpen={Boolean(error)}>
@@ -54,36 +54,46 @@ export default async function AdminOrganisationsPage({ searchParams }: { searchP
               Add the first one above. Once registered on the network it can have issuer wallets authorised.
             </EmptyState>
           ) : (
-            <RowList>
-              {organisations.map((o) => {
-                const s = ORG_STATUS[o.status] ?? { tone: "neutral" as const, label: o.status, note: "" };
-                return (
-                  <li key={o.id}>
-                    <Link href={`/admin/organisations/${o.id}`} className="group flex flex-wrap items-center justify-between gap-3 px-4 py-4 transition hover:bg-neutral-50 sm:px-5">
-                      <div className="flex min-w-0 items-start gap-3.5">
-                        <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-500">
-                          <Icon name="building" className="size-5" />
-                        </span>
-                        <div className="min-w-0">
-                          <p className="font-semibold text-neutral-900 group-hover:text-emerald-800">{o.displayName}</p>
-                          <p className="text-sm text-neutral-600">
-                            {o.legalName !== o.displayName ? `${o.legalName} · ` : ""}
-                            {KIND[o.kind] ?? o.kind.toLowerCase().replaceAll("_", " ")}
-                          </p>
-                          <p className="text-xs text-neutral-500">{s.note}</p>
-                        </div>
-                      </div>
-                      <span className="flex items-center gap-3">
-                        <Badge tone={s.tone} icon={o.status === "ACTIVE" ? "check" : o.status === "SUSPENDED" ? "alert" : "clock"}>
-                          {s.label}
-                        </Badge>
-                        <Icon name="chevron-right" className="size-4 text-neutral-400 transition group-hover:translate-x-0.5" />
-                      </span>
-                    </Link>
-                  </li>
-                );
-              })}
-            </RowList>
+            <div className="overflow-x-auto rounded-lg border border-neutral-200 bg-white shadow-card">
+              <table className="w-full min-w-[640px] text-left text-sm">
+                <thead className="border-b border-neutral-200 bg-neutral-50 text-xs font-medium uppercase tracking-wide text-neutral-500">
+                  <tr>
+                    <th scope="col" className="px-4 py-2.5">Organisation</th>
+                    <th scope="col" className="px-4 py-2.5">Type</th>
+                    <th scope="col" className="px-4 py-2.5">Status</th>
+                    <th scope="col" className="px-4 py-2.5">Next step</th>
+                    <th scope="col" className="px-4 py-2.5"><span className="sr-only">Open</span></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-100">
+                  {organisations.map((o) => {
+                    const s = ORG_STATUS[o.status] ?? { tone: "neutral" as const, label: o.status, note: "" };
+                    return (
+                      <tr key={o.id} className="transition hover:bg-neutral-50">
+                        <td className="px-4 py-3">
+                          <Link href={`/admin/organisations/${o.id}`} className="font-semibold text-neutral-900 hover:text-emerald-800 hover:underline">
+                            {o.displayName.trim()}
+                          </Link>
+                          {o.legalName !== o.displayName ? <p className="text-xs text-neutral-500">{o.legalName}</p> : null}
+                        </td>
+                        <td className="px-4 py-3 text-neutral-700">{KIND[o.kind] ?? o.kind.toLowerCase().replaceAll("_", " ")}</td>
+                        <td className="px-4 py-3">
+                          <Badge tone={s.tone} icon={o.status === "ACTIVE" ? "check" : o.status === "SUSPENDED" ? "alert" : "clock"}>
+                            {s.label}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3 text-neutral-600">{s.note}</td>
+                        <td className="px-4 py-3 text-right">
+                          <Link href={`/admin/organisations/${o.id}`} className={btn.link}>
+                            Open
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
         </section>
       </div>

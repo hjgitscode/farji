@@ -1,3 +1,4 @@
+import { PulseExplainer } from "@/components/issuer/ProofExplainers";
 import type { Metadata } from "next";
 import { acceptEndAction, buildIssuerTxAction, prepareEndAction, recordIssuerTxAction } from "@/app/issuer/chain-actions";
 import { Alert, Badge, Card, EmptyState, Facts, PageHeader } from "@/components/ui";
@@ -23,7 +24,8 @@ export default async function IssuerPulsePage() {
   const covered = anchors[0] && tree ? anchors[0].rootSeq === tree.currentRootSeq : false;
   return (
     <div className="space-y-6">
-      <PageHeader title="Current relationships" description="Ongoing employment, enrolment and membership. Re-confirming keeps them shown as current. Time passing alone changes nothing here, and ending a relationship is not a revocation." />
+      <PageHeader title="Current relationships" description="Ongoing roles, enrolments and memberships. Re-confirm to keep them current." />
+      <PulseExplainer />
       {!tree ? (
         <EmptyState title="No current relationships yet">They appear once an ongoing credential is signed.</EmptyState>
       ) : (

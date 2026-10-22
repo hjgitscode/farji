@@ -9,7 +9,7 @@ export default async function VerifyPage({ searchParams }: { searchParams: Promi
   return (
     <div className="mx-auto max-w-2xl space-y-8 py-4 sm:py-10">
       <div className="space-y-3 text-center">
-        <span className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
+        <span className="mx-auto flex size-14 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
           <Icon name="shield-check" className="size-7" strokeWidth={1.6} />
         </span>
         <h1 className="text-3xl font-semibold tracking-tight">Verify a credential</h1>

@@ -47,11 +47,11 @@ export default async function PublicProfilePage({ params }: Props) {
 
   return (
     <div className="mx-auto max-w-4xl space-y-8">
-      <section className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-card">
+      <section className="overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-card">
         <div className="h-24 bg-gradient-to-r from-emerald-900 via-emerald-800 to-teal-700 sm:h-28" aria-hidden="true" />
         <div className="px-5 pb-6 sm:px-8">
           <div className="-mt-10 flex flex-wrap items-end justify-between gap-4">
-            <span className="flex size-20 items-center justify-center rounded-2xl border-4 border-white bg-neutral-900 text-2xl font-semibold tracking-wide text-white shadow-card" aria-hidden="true">
+            <span className="flex size-20 items-center justify-center rounded-xl border-4 border-white bg-neutral-900 text-2xl font-semibold tracking-wide text-white shadow-card" aria-hidden="true">
               {initials || "?"}
             </span>
             {profile.available && verified.length > 0 ? (

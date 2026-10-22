@@ -41,9 +41,8 @@ export default async function IssuerDashboardPage() {
     <div>
       <div className="mb-7 flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1.5">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-emerald-700">Issuer workspace</p>
           <h1 className="text-[1.65rem] font-semibold leading-tight tracking-tight">Verification operations</h1>
-          <p className="max-w-2xl text-sm text-neutral-600">Confirm records from your organisation&apos;s own files. Each confirmation is reviewed, signed, batched, anchored and finalized.</p>
+          <p className="max-w-2xl text-sm text-neutral-600">Review, sign, batch and anchor your organisation&apos;s confirmations.</p>
         </div>
         <Link href="/issuer/requests" className={btn.primary}>
           <Icon name="inbox" className="size-4" />
@@ -104,7 +103,7 @@ export default async function IssuerDashboardPage() {
             { href: "/issuer/wallet", icon: "wallet" as IconName, title: "Signing wallet", text: "Your organisation's authority to sign and anchor." },
             { href: "/issuer/history", icon: "history" as IconName, title: "Verification history", text: "Where each issued credential stands today." },
           ].map((l) => (
-            <Link key={l.href} href={l.href} className="group flex items-start gap-3 rounded-xl border border-neutral-200 bg-white p-4 shadow-card transition hover:-translate-y-px hover:border-neutral-300 hover:shadow-lift">
+            <Link key={l.href} href={l.href} className="group flex items-start gap-3 rounded-lg border border-neutral-200 bg-white p-4 shadow-card transition hover:-translate-y-px hover:border-neutral-300 hover:shadow-lift">
               <Icon name={l.icon} className="mt-0.5 size-5 text-emerald-700" />
               <span className="min-w-0">
                 <span className="flex items-center gap-1.5 text-sm font-semibold text-neutral-900">

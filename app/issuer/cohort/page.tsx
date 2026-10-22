@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { buildIssuerTxAction, recordIssuerTxAction, sealBatchAction } from "@/app/issuer/chain-actions";
 import { Alert, Badge, Card, Disclosure, EmptyState, Facts, Icon, Mono, PageHeader, Stepper, type StepState } from "@/components/ui";
+import { CohortExplainer } from "@/components/issuer/ProofExplainers";
 import { short } from "@/components/wallet/TxTable";
 import { ActionButton, TxButton } from "@/components/wallet/WalletButtons";
 import { requireIssuer } from "@/lib/auth/guards";
@@ -30,14 +31,15 @@ export default async function IssuerCohortPage() {
     <div>
       <PageHeader
         title="Credential batches"
-        description="Signed permanent and expiring credentials wait in an open batch. Close it when you are ready, then anchor it so the credentials become verifiable. A credential signed later joins the next batch."
+        description="Close the open batch, then anchor it so its credentials become verifiable."
       />
       <div className="space-y-5">
+        <CohortExplainer />
         {!chainId ? <Alert tone="warning">Anchoring is not available: this server is not connected to the network yet.</Alert> : null}
 
         <Card className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <span className="flex size-12 items-center justify-center rounded-xl bg-indigo-100 text-indigo-700">
+            <span className="flex size-12 items-center justify-center rounded-lg bg-indigo-100 text-indigo-700">
               <Icon name="layers" className="size-6" />
             </span>
             <div>
@@ -77,7 +79,7 @@ export default async function IssuerCohortPage() {
                   <Stepper label="Batch progress" steps={stepsFor(b.status)} />
 
                   {chainId && b.status === "SEALED" ? (
-                    <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-emerald-200 bg-emerald-50/70 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-emerald-200 bg-emerald-50/70 p-4">
                       <p className="max-w-md text-sm text-neutral-800">
                         <span className="font-medium">This batch is closed and ready.</span> Anchoring records it on the network. You will confirm one transaction in your wallet; the batch counts as evidence once it is final.
                       </p>

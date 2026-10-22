@@ -33,9 +33,8 @@ export default async function AdminDashboardPage() {
   return (
     <div>
       <div className="mb-7 space-y-1.5">
-        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-emerald-700">Control centre</p>
         <h1 className="text-[1.65rem] font-semibold leading-tight tracking-tight">Administration</h1>
-        <p className="max-w-2xl text-sm text-neutral-600">Admins govern organisations and their issuer wallets. They never issue, end or revoke credentials.</p>
+        <p className="max-w-2xl text-sm text-neutral-600">Organisations, issuer wallets and chain activity.</p>
       </div>
 
       <div className="space-y-6">

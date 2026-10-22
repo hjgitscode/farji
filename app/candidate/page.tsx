@@ -1,148 +1,173 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { RecordCard } from "@/components/candidate/RecordCard";
-import { Alert, btn, EmptyState, Icon, Panel, Section, Stat } from "@/components/ui";
+import { RecordRow } from "@/components/candidate/RecordRow";
+import { Alert, btn, EmptyState, Icon } from "@/components/ui";
 import { requireCandidate } from "@/lib/auth/guards";
 import { getDb } from "@/lib/database/client";
+import { CATEGORY_PLURAL } from "@/lib/format";
 import { summariseStates } from "@/lib/verification/summary";
 import { getOwnProfile } from "@/server/candidate/profile";
+import { profilePath } from "@/server/public/origin";
 import { deriveCandidateRecords } from "@/server/verification/records";
 
-export const metadata: Metadata = { title: "Overview" };
+export const metadata: Metadata = { title: "Profile" };
 
+const SECTIONS = ["EXPERIENCE", "EDUCATION", "CERTIFICATION", "MEMBERSHIP"] as const;
 const VISIBILITY_NOTE = { PRIVATE: "Private", UNLISTED: "Shared by link", PUBLIC: "Public" } as const;
 
-export default async function CandidateDashboardPage() {
+export default async function CandidateProfilePage() {
   const actor = await requireCandidate("/candidate");
   const db = getDb();
   const [{ available, records }, profile] = await Promise.all([deriveCandidateRecords(db, actor), getOwnProfile(db, actor)]);
   // Every number is a count of records whose state the verification engine derived. Nothing is estimated.
   const counts = summariseStates(records.flatMap((r) => (r.result ? [r.result.state] : [])));
-  const recent = records.slice(0, 4);
-  const eligible = records.filter((r) => r.result?.state === "SELF_DECLARED" && !r.archivedAt).length;
+  const live = records.filter((r) => !r.archivedAt);
+  const unverified = live.filter((r) => r.result?.state === "SELF_DECLARED").length;
   const initials = (profile?.displayName ?? "")
     .split(/\s+/)
     .filter(Boolean)
     .slice(0, 2)
     .map((w) => w[0]?.toUpperCase())
     .join("");
-  const actionCount = (eligible > 0 ? 1 : 0) + (profile ? 0 : 1) + (counts.needsRefresh > 0 ? 1 : 0);
 
   return (
-    <div className="space-y-8">
-      <section className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-card">
-        <div className="flex flex-wrap items-center justify-between gap-5 bg-gradient-to-br from-emerald-950 via-emerald-900 to-emerald-800 px-5 py-6 text-white sm:px-8">
-          <div className="flex min-w-0 items-center gap-4">
-            <span className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-lg font-semibold tracking-wide ring-1 ring-inset ring-white/20" aria-hidden="true">
-              {initials || <Icon name="user" className="size-6" />}
-            </span>
-            <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-emerald-200/80">Your professional record</p>
-              <h1 className="truncate text-2xl font-semibold tracking-tight">{profile?.displayName ?? "Welcome to FARJI"}</h1>
-              <p className="truncate text-sm text-emerald-50/80">
-                {profile ? (profile.headline ?? "Profile") + ` · ${VISIBILITY_NOTE[profile.visibility]}` : "Build your profile, then ask the institutions behind it to confirm it."}
-              </p>
+    <div className="grid gap-6 lg:grid-cols-[1fr_19rem]">
+      <div className="min-w-0 space-y-4">
+        <section className="overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-card">
+          <div className="h-24 bg-neutral-800" aria-hidden="true" />
+          <div className="px-5 pb-5 sm:px-6">
+            <div className="-mt-10 flex items-end justify-between gap-3">
+              <span className="flex size-20 items-center justify-center rounded-full border-4 border-white bg-emerald-800 text-2xl font-semibold text-white" aria-hidden="true">
+                {initials || <Icon name="user" className="size-8" />}
+              </span>
+              <div className="flex gap-2">
+                <Link href="/candidate/profile" className={btn.secondary}>
+                  Edit profile
+                </Link>
+                {profile && profile.visibility !== "PRIVATE" ? (
+                  <Link href={profilePath(profile.handle)} className={btn.secondary}>
+                    View public profile
+                  </Link>
+                ) : null}
+              </div>
             </div>
+            <h1 className="mt-3 text-xl font-semibold tracking-tight sm:text-2xl">{profile?.displayName ?? "Your profile"}</h1>
+            <p className="text-neutral-800">{profile?.headline ?? "Add a headline so people know who you are."}</p>
+            <p className="mt-1 flex flex-wrap items-center gap-x-3 text-sm text-neutral-500">
+              {profile?.location ? <span>{profile.location}</span> : null}
+              <span className="inline-flex items-center gap-1.5">
+                <Icon name={profile?.visibility === "PUBLIC" ? "globe" : profile?.visibility === "UNLISTED" ? "link" : "lock"} className="size-3.5" />
+                {profile ? VISIBILITY_NOTE[profile.visibility] : "Private"}
+              </span>
+            </p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Link href="/candidate/claims/new" className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-emerald-900 shadow-sm transition hover:bg-emerald-50">
-              <Icon name="plus" className="size-4" />
-              Add record
-            </Link>
-            <Link href="/candidate/import" className="inline-flex items-center gap-2 rounded-lg border border-white/25 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10">
-              <Icon name="upload" className="size-4" />
-              Import
-            </Link>
-          </div>
-        </div>
-      </section>
+        </section>
 
-      {!available ? <Alert tone="warning">Verification status is unavailable right now, so records are listed without a status.</Alert> : null}
-
-      {records.length === 0 ? (
-        <EmptyState
-          title="Build your FARJI profile"
-          icon="file"
-          action={
-            <div className="flex flex-wrap justify-center gap-2">
-              <Link href="/candidate/import" className={btn.primary}>
-                Import professional profile
-              </Link>
-              <Link href="/candidate/claims/new" className={btn.secondary}>
-                Add manually
-              </Link>
-            </div>
-          }
-        >
-          Import from LinkedIn or another professional profile by pasting it or uploading a CSV, or add your records one by one. Nothing is verified until the institution confirms it.
-        </EmptyState>
-      ) : (
-        <>
-          <section aria-label="Verification summary" className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-            <Stat label="Verified" value={counts.verified} tone="verified" icon="shield-check" href="/candidate/claims" />
-            <Stat label="Currently confirmed" value={counts.currentlyAttested} tone="current" icon="check" href="/candidate/claims" />
-            <Stat label="Pending" value={counts.pending} tone="pending" icon="clock" href="/candidate/claims" />
-            <Stat label="Needs refresh" value={counts.needsRefresh} tone="attention" icon="refresh" href="/candidate/claims" />
-            <Stat label="Self-declared" value={counts.selfDeclared} tone="neutral" icon="file" href="/candidate/claims" />
+        {profile?.about ? (
+          <section className="rounded-lg border border-neutral-200 bg-white p-5 shadow-card sm:px-6">
+            <h2 className="text-base font-semibold">About</h2>
+            <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-neutral-700">{profile.about}</p>
           </section>
+        ) : null}
 
-          {actionCount > 0 ? (
-            <Panel title="Needs your attention" description={`${actionCount} thing${actionCount === 1 ? "" : "s"} to do`}>
-              <ul className="space-y-3 text-sm">
-                {eligible > 0 ? (
-                  <li className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="flex items-center gap-2.5">
-                      <Icon name="badge" className="size-4 text-emerald-700" />
-                      {eligible} record{eligible === 1 ? " is" : "s are"} not verified yet. Choose an organisation to request verification.
-                    </span>
-                    <Link href="/candidate/claims" className={btn.link}>
-                      Open records
-                    </Link>
-                  </li>
-                ) : null}
-                {counts.needsRefresh > 0 ? (
-                  <li className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="flex items-center gap-2.5">
-                      <Icon name="refresh" className="size-4 text-amber-700" />
-                      {counts.needsRefresh} current record{counts.needsRefresh === 1 ? " needs" : "s need"} re-confirming by the organisation.
-                    </span>
-                    <Link href="/candidate/claims" className={btn.link}>
-                      Review
-                    </Link>
-                  </li>
-                ) : null}
-                {!profile ? (
-                  <li className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="flex items-center gap-2.5">
-                      <Icon name="share" className="size-4 text-sky-700" />
-                      Set up your public profile. Everything stays private until you decide otherwise.
-                    </span>
-                    <Link href="/candidate/profile" className={btn.link}>
-                      Set up profile
-                    </Link>
-                  </li>
-                ) : null}
-              </ul>
-            </Panel>
-          ) : null}
+        {!available ? <Alert tone="warning">Verification status is unavailable right now, so records are listed without a status.</Alert> : null}
 
-          <Section
-            title="Recent records"
+        {live.length === 0 ? (
+          <EmptyState
+            title="Add your first record"
+            icon="file"
             action={
-              <Link href="/candidate/claims" className={`${btn.link} inline-flex items-center gap-1.5`}>
-                See all records
-                <Icon name="arrow-right" className="size-3.5" />
-              </Link>
+              <div className="flex flex-wrap justify-center gap-2">
+                <Link href="/candidate/claims/new" className={btn.primary}>
+                  Add record
+                </Link>
+                <Link href="/candidate/import" className={btn.secondary}>
+                  Import
+                </Link>
+              </div>
             }
           >
-            <ul className="grid gap-3 md:grid-cols-2">
-              {recent.map((r) => (
-                <RecordCard key={r.claimId} record={r} available={available} />
-              ))}
+            Experience, education and certifications start as self-declared until the organisation confirms them.
+          </EmptyState>
+        ) : (
+          SECTIONS.map((cat) => {
+            const rows = live.filter((r) => r.category === cat);
+            if (rows.length === 0) return null;
+            return (
+              <section key={cat} className="rounded-lg border border-neutral-200 bg-white p-5 shadow-card sm:px-6" aria-labelledby={`h-${cat}`}>
+                <div className="mb-4 flex items-center justify-between">
+                  <h2 id={`h-${cat}`} className="text-base font-semibold">
+                    {CATEGORY_PLURAL[cat]}
+                  </h2>
+                  <Link href={`/candidate/claims/new`} className="text-sm font-medium text-emerald-800 hover:underline">
+                    Add
+                  </Link>
+                </div>
+                <ul className="divide-y divide-neutral-100">
+                  {rows.map((r) => (
+                    <RecordRow key={r.claimId} record={r} available={available} />
+                  ))}
+                </ul>
+              </section>
+            );
+          })
+        )}
+      </div>
+
+      <aside className="space-y-4">
+        <section className="rounded-lg border border-neutral-200 bg-white p-5 shadow-card" aria-label="Verification summary">
+          <h2 className="text-sm font-semibold">Verification</h2>
+          <dl className="mt-3 space-y-2 text-sm">
+            {[
+              ["Verified", counts.verified, "text-emerald-700"],
+              ["Currently confirmed", counts.currentlyAttested, "text-teal-700"],
+              ["Pending", counts.pending, "text-indigo-700"],
+              ["Needs refresh", counts.needsRefresh, "text-amber-700"],
+              ["Self-declared", counts.selfDeclared, "text-neutral-500"],
+            ].map(([label, n, cls]) => (
+              <div key={label as string} className="flex items-center justify-between">
+                <dt className="text-neutral-600">{label}</dt>
+                <dd className={`font-semibold tabular-nums ${cls}`}>{n}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+
+        {unverified > 0 || !profile ? (
+          <section className="rounded-lg border border-neutral-200 bg-white p-5 shadow-card" aria-label="Next steps">
+            <h2 className="text-sm font-semibold">Next steps</h2>
+            <ul className="mt-3 space-y-3 text-sm text-neutral-700">
+              {unverified > 0 ? (
+                <li>
+                  {unverified} record{unverified === 1 ? " is" : "s are"} not verified.{" "}
+                  <Link href="/candidate/claims" className={btn.link}>
+                    Request verification
+                  </Link>
+                </li>
+              ) : null}
+              {!profile ? (
+                <li>
+                  Set up your public profile.{" "}
+                  <Link href="/candidate/profile" className={btn.link}>
+                    Set up
+                  </Link>
+                </li>
+              ) : null}
             </ul>
-          </Section>
-        </>
-      )}
+          </section>
+        ) : null}
+
+        <div className="flex flex-col gap-2">
+          <Link href="/candidate/claims/new" className={btn.primary}>
+            <Icon name="plus" className="size-4" />
+            Add record
+          </Link>
+          <Link href="/candidate/import" className={btn.secondary}>
+            <Icon name="upload" className="size-4" />
+            Import profile
+          </Link>
+        </div>
+      </aside>
     </div>
   );
 }

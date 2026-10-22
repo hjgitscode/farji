@@ -25,9 +25,9 @@ export const metadata: Metadata = { title: "Verify a credential", robots: { inde
 
 // The verdict panel: strong and calm for trust-positive results, unmistakable for revoked/invalid, quiet for the rest.
 const VERDICT: Record<Tone, { box: string; sub: string; ring: string; icon: IconName }> = {
-  verified: { box: "border-emerald-800 bg-gradient-to-br from-emerald-900 via-emerald-800 to-emerald-700 text-white", sub: "text-emerald-50/85", ring: "bg-white/15 text-white", icon: "shield-check" },
-  current: { box: "border-teal-800 bg-gradient-to-br from-teal-900 via-teal-800 to-emerald-700 text-white", sub: "text-teal-50/85", ring: "bg-white/15 text-white", icon: "shield-check" },
-  danger: { box: "border-rose-900 bg-gradient-to-br from-rose-950 via-rose-900 to-rose-800 text-white", sub: "text-rose-50/85", ring: "bg-white/15 text-white", icon: "alert" },
+  verified: { box: "border-emerald-800 bg-emerald-800 text-white", sub: "text-emerald-50/85", ring: "bg-white/15 text-white", icon: "shield-check" },
+  current: { box: "border-teal-800 bg-teal-800 text-white", sub: "text-teal-50/85", ring: "bg-white/15 text-white", icon: "shield-check" },
+  danger: { box: "border-rose-900 bg-rose-900 text-white", sub: "text-rose-50/85", ring: "bg-white/15 text-white", icon: "alert" },
   attention: { box: "border-amber-300 bg-amber-50 text-amber-950", sub: "text-amber-900/80", ring: "bg-amber-200/70 text-amber-900", icon: "alert" },
   pending: { box: "border-indigo-200 bg-indigo-50 text-indigo-950", sub: "text-indigo-900/80", ring: "bg-indigo-100 text-indigo-700", icon: "clock" },
   muted: { box: "border-slate-300 bg-slate-100 text-slate-900", sub: "text-slate-700", ring: "bg-slate-200 text-slate-700", icon: "history" },
@@ -62,9 +62,9 @@ export default async function VerifyCredentialPage({ params }: Props) {
         <span className="text-neutral-700">Credential check</span>
       </p>
 
-      <section aria-labelledby="verdict" className={`overflow-hidden rounded-2xl border p-6 shadow-lift sm:p-8 ${v.box}`}>
+      <section aria-labelledby="verdict" className={`overflow-hidden rounded-xl border p-6 sm:p-7 ${v.box}`}>
         <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
-          <span className={`flex size-14 shrink-0 items-center justify-center rounded-2xl ${v.ring}`}>
+          <span className={`flex size-14 shrink-0 items-center justify-center rounded-xl ${v.ring}`}>
             <Icon name={v.icon} className="size-7" strokeWidth={1.6} />
           </span>
           <div className="min-w-0 space-y-3">
@@ -107,7 +107,7 @@ export default async function VerifyCredentialPage({ params }: Props) {
 
       <Card className="space-y-5">
         <div className="flex items-start gap-4">
-          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-600">
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-600">
             <Icon name={categoryIcon(r.category)} className="size-5" />
           </span>
           <div className="min-w-0">
@@ -144,7 +144,7 @@ export default async function VerifyCredentialPage({ params }: Props) {
           </div>
           <ul className="grid gap-3 sm:grid-cols-2">
             {evidenceGroups.map((g) => (
-              <li key={g.id} className="flex gap-3 rounded-xl border border-neutral-200 bg-white p-4 shadow-card">
+              <li key={g.id} className="flex gap-3 rounded-lg border border-neutral-200 bg-white p-4 shadow-card">
                 <span
                   className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${g.status === "PASS" ? "bg-emerald-100 text-emerald-700" : g.status === "FAIL" ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-800"}`}
                 >
