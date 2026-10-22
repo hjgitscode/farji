@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { approveRequestAction, rejectRequestAction } from "@/app/issuer/actions";
 import { ApproveForm, RejectForm } from "@/components/issuer/ReviewForms";
-import { Alert, btn, Card, Facts, PageHeader, Section } from "@/components/ui";
+import { Alert, Badge, Facts, Icon, PageHeader, Panel } from "@/components/ui";
 import { CATEGORY_LABEL, formatDate, LIFECYCLE_LABEL } from "@/lib/format";
 import { requireIssuer } from "@/lib/auth/guards";
 import { readContent, REQUEST_STATUS_LABEL } from "@/lib/core/claims";
@@ -31,56 +31,72 @@ export default async function IssuerRequestPage({ params }: { params: Promise<{ 
   const reviewable = OPEN.includes(request.status) && v.isCurrentVersion && !request.isOwnClaim;
 
   return (
-    <div className="space-y-8">
-      <p>
-        <Link href="/issuer/requests" className={btn.link}>
-          ← All requests
-        </Link>
-      </p>
-      <PageHeader title={c.title ?? "Request"} description={`${c.organisationName ?? ""} · ${CATEGORY_LABEL[v.category] ?? v.category} · ${LIFECYCLE_LABEL[v.proposedLifecycleType] ?? ""} · version ${v.versionNumber}`} />
+    <div className="space-y-6">
+      <Link href="/issuer/requests" className="inline-flex items-center gap-1.5 text-sm font-medium text-neutral-600 hover:text-neutral-900">
+        <Icon name="chevron-right" className="size-4 rotate-180" />
+        All requests
+      </Link>
+      <PageHeader
+        title={c.title ?? "Request"}
+        description={`${c.organisationName ?? ""} · ${CATEGORY_LABEL[v.category] ?? v.category} · ${LIFECYCLE_LABEL[v.proposedLifecycleType] ?? ""} · version ${v.versionNumber}`}
+        actions={<Badge tone={OPEN.includes(request.status) ? "pending" : "neutral"}>{REQUEST_STATUS_LABEL[request.status] ?? request.status}</Badge>}
+      />
 
-      <Card className="space-y-3">
-        <h2 className="font-semibold">What the candidate submitted</h2>
-        <Facts
-          items={[
-            ["Started", formatDate(c.startDate)],
-            ["Ended", formatDate(c.endDate)],
-            ["Expires", formatDate(c.expiryDate)],
-            ["Location", c.location],
-            ["Field of study", c.fieldOfStudy],
-            ["Credential number", c.credentialNumber],
-            ["Description", c.description],
-            ["Submitted", formatDate(request.submittedAt)],
-            ["Status", REQUEST_STATUS_LABEL[request.status] ?? request.status],
-            ["Candidate identifier", request.institutionalIdentifier],
-            ["Candidate note", request.candidateNote],
-          ]}
-        />
-      </Card>
+      <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+        <Panel title="What the candidate submitted" description="Compare each line with your organisation's own records.">
+          <Facts
+            items={[
+              ["Started", formatDate(c.startDate)],
+              ["Ended", formatDate(c.endDate)],
+              ["Expires", formatDate(c.expiryDate)],
+              ["Location", c.location],
+              ["Field of study", c.fieldOfStudy],
+              ["Credential number", c.credentialNumber],
+              ["Description", c.description],
+              ["Submitted", formatDate(request.submittedAt)],
+              ["Candidate identifier", request.institutionalIdentifier],
+              ["Candidate note", request.candidateNote],
+            ]}
+          />
+        </Panel>
 
-      {request.decision ? (
-        <Section title="Decision">
-          <p className="text-sm">
-            {request.decision.decision === "APPROVE" ? "Approved" : "Rejected"} on {formatDate(request.decision.decidedAt)}
-            {request.decision.rejectionReason ? ` (${request.decision.rejectionReason.toLowerCase().replaceAll("_", " ")})` : ""}
-          </p>
-          <Facts items={[["Reference", request.decision.sourceOfTruthReference], ["Internal notes", request.decision.notes]]} />
-          {v.credential ? <p className="text-sm text-neutral-700">Approved. The next step is signing, under Credentials.</p> : null}
-        </Section>
-      ) : null}
+        <div className="space-y-4">
+          {request.decision ? (
+            <Panel title="Decision">
+              <p className="flex items-center gap-2 text-sm font-medium">
+                <Badge tone={request.decision.decision === "APPROVE" ? "verified" : "neutral"} icon={request.decision.decision === "APPROVE" ? "check" : "x"}>
+                  {request.decision.decision === "APPROVE" ? "Approved" : "Rejected"}
+                </Badge>
+                <span className="text-neutral-600">
+                  on {formatDate(request.decision.decidedAt)}
+                  {request.decision.rejectionReason ? ` (${request.decision.rejectionReason.toLowerCase().replaceAll("_", " ")})` : ""}
+                </span>
+              </p>
+              <div className="mt-4">
+                <Facts items={[["Reference", request.decision.sourceOfTruthReference], ["Internal notes", request.decision.notes]]} />
+              </div>
+              {v.credential ? <p className="mt-4 text-sm text-neutral-700">Approved. The next step is signing, under Credentials.</p> : null}
+            </Panel>
+          ) : null}
+
+          {reviewable ? (
+            <Alert tone="info" title="Confirm from your own records">
+              By approving, your organisation attests that this record matches your own records. The approval is then signed with your organisation&apos;s wallet.
+            </Alert>
+          ) : OPEN.includes(request.status) ? (
+            <Alert tone="warning">{request.isOwnClaim ? "You cannot review your own record." : "This request is for a version that has since been replaced and can no longer be reviewed."}</Alert>
+          ) : null}
+        </div>
+      </div>
 
       {reviewable ? (
-        <Section title="Your decision">
-          <Alert tone="info" title="Confirm from your own records">
-            By approving, your organisation attests that this record matches your own records. The approval is then signed with your organisation&apos;s wallet. Rejecting keeps the request on file and tells the candidate which part did not match; the record remains theirs, as self-declared.
-          </Alert>
-          <div className="grid gap-6 lg:grid-cols-2">
+        <section aria-label="Your decision" className="space-y-3">
+          <h2 className="text-base font-semibold tracking-tight">Your decision</h2>
+          <div className="grid gap-4 lg:grid-cols-2">
             <ApproveForm action={approveRequestAction.bind(null, request.id)} />
             <RejectForm action={rejectRequestAction.bind(null, request.id)} />
           </div>
-        </Section>
-      ) : OPEN.includes(request.status) ? (
-        <Alert tone="warning">{request.isOwnClaim ? "You cannot review your own record." : "This request is for a version that has since been replaced and can no longer be reviewed."}</Alert>
+        </section>
       ) : null}
     </div>
   );

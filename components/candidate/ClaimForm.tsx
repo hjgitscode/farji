@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import type { ClaimFormState } from "@/app/candidate/actions";
+import { inputClass, btn } from "@/components/ui";
 
 type Values = Partial<Record<string, string>>;
 
@@ -36,7 +37,7 @@ export function ClaimForm({ action, submitLabel, initial = {}, fixedCategory }: 
         {label}
       </label>
       {opts.textarea ? (
-        <textarea id={name} name={name} defaultValue={initial[name] ?? ""} rows={3} className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm placeholder:text-neutral-400 focus:border-neutral-900 focus:outline-none focus:ring-1 focus:ring-neutral-900" />
+        <textarea id={name} name={name} defaultValue={initial[name] ?? ""} rows={3} className={inputClass} />
       ) : (
         <input
           id={name}
@@ -45,7 +46,7 @@ export function ClaimForm({ action, submitLabel, initial = {}, fixedCategory }: 
           defaultValue={initial[name] ?? ""}
           required={opts.required}
           aria-invalid={err(name) ? true : undefined}
-          className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm placeholder:text-neutral-400 focus:border-neutral-900 focus:outline-none focus:ring-1 focus:ring-neutral-900"
+          className={inputClass}
         />
       )}
       {err(name) ? (
@@ -65,7 +66,7 @@ export function ClaimForm({ action, submitLabel, initial = {}, fixedCategory }: 
           <label htmlFor="category" className="block text-sm font-medium">
             Category
           </label>
-          <select id="category" name="category" defaultValue={initial.category ?? "EXPERIENCE"} className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm placeholder:text-neutral-400 focus:border-neutral-900 focus:outline-none focus:ring-1 focus:ring-neutral-900">
+          <select id="category" name="category" defaultValue={initial.category ?? "EXPERIENCE"} className={inputClass}>
             {CATEGORIES.map(([v, l]) => (
               <option key={v} value={v}>
                 {l}
@@ -80,7 +81,7 @@ export function ClaimForm({ action, submitLabel, initial = {}, fixedCategory }: 
         <label htmlFor="lifecycleType" className="block text-sm font-medium">
           Type of record
         </label>
-        <select id="lifecycleType" name="lifecycleType" defaultValue={initial.lifecycleType ?? "PERMANENT"} className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm placeholder:text-neutral-400 focus:border-neutral-900 focus:outline-none focus:ring-1 focus:ring-neutral-900">
+        <select id="lifecycleType" name="lifecycleType" defaultValue={initial.lifecycleType ?? "PERMANENT"} className={inputClass}>
           {LIFECYCLES.map(([v, l]) => (
             <option key={v} value={v}>
               {l}
@@ -109,7 +110,7 @@ export function ClaimForm({ action, submitLabel, initial = {}, fixedCategory }: 
         </p>
       ) : null}
 
-      <button type="submit" disabled={pending} className="inline-flex items-center justify-center rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
+      <button type="submit" disabled={pending} className={btn.primary}>
         {pending ? "Saving…" : submitLabel}
       </button>
     </form>

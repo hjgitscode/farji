@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { btn } from "@/components/ui";
+import { btn, Icon, Spinner, type IconName } from "@/components/ui";
 import { connectWallet, refuse, sendTransaction, signTypedData, walletMessage } from "./wallet";
 
 // Thin client components around the server actions. Every value that matters (typed data, calldata,
@@ -15,7 +15,7 @@ export type RecordResult = ActionFail | { ok: true; id: string; status: string; 
 export type PrepareResult = ActionFail | { ok: true; walletTypedData: unknown; issuedAt: string; nonce: string; effectiveAt?: string };
 export type AcceptResult = ActionFail | { ok: true; message: string };
 
-type Props = { label: string; chainId: string; disabled?: boolean };
+type Props = { label: string; chainId: string; disabled?: boolean; icon?: IconName };
 
 function useRunner() {
   const router = useRouter();
@@ -41,8 +41,27 @@ function useRunner() {
 function Status({ message, error }: { message: string | null; error: string | null }) {
   return (
     <>
-      {message ? <p role="status" className="text-sm text-emerald-800">{message}</p> : null}
-      {error ? <p role="alert" className="text-sm text-rose-700">{error}</p> : null}
+      {message ? (
+        <p role="status" className="flex items-start gap-1.5 text-sm text-emerald-800">
+          <Icon name="check" className="mt-0.5 size-4" strokeWidth={2.25} />
+          {message}
+        </p>
+      ) : null}
+      {error ? (
+        <p role="alert" className="flex items-start gap-1.5 text-sm text-rose-700">
+          <Icon name="alert" className="mt-0.5 size-4" strokeWidth={2.25} />
+          {error}
+        </p>
+      ) : null}
+    </>
+  );
+}
+
+function Busy({ children }: { children: React.ReactNode }) {
+  return (
+    <>
+      <Spinner />
+      {children}
     </>
   );
 }
@@ -50,7 +69,7 @@ function Status({ message, error }: { message: string | null; error: string | nu
 const button = btn.primary;
 
 /** Server builds the transaction -> the connected wallet broadcasts it -> the server records the hash. */
-export function TxButton({ label, chainId, disabled, build, record }: Props & { build: () => Promise<BuildResult>; record: (txHash: string) => Promise<RecordResult> }) {
+export function TxButton({ label, chainId, disabled, icon, build, record }: Props & { build: () => Promise<BuildResult>; record: (txHash: string) => Promise<RecordResult> }) {
   const { busy, message, error, run } = useRunner();
   return (
     <div className="space-y-1">
@@ -71,7 +90,7 @@ export function TxButton({ label, chainId, disabled, build, record }: Props & { 
           })
         }
       >
-        {busy ? "Waiting for your wallet…" : label}
+        {busy ? <Busy>Waiting for your wallet…</Busy> : <>{icon ? <Icon name={icon} className="size-4" /> : null}{label}</>}
       </button>
       <Status message={message} error={error} />
     </div>
@@ -83,6 +102,7 @@ export function SignButton({
   label,
   chainId,
   disabled,
+  icon,
   prepare,
   accept,
 }: Props & {
@@ -108,7 +128,7 @@ export function SignButton({
           })
         }
       >
-        {busy ? "Waiting for your wallet…" : label}
+        {busy ? <Busy>Waiting for your wallet…</Busy> : <>{icon ? <Icon name={icon} className="size-4" /> : null}{label}</>}
       </button>
       <Status message={message} error={error} />
     </div>
@@ -116,13 +136,13 @@ export function SignButton({
 }
 
 /** A plain server action button (no wallet), e.g. "Seal batch" or "Check status". */
-export function ActionButton({ label, disabled, action }: { label: string; disabled?: boolean; action: () => Promise<AcceptResult> }) {
+export function ActionButton({ label, disabled, action, variant = "secondary", icon }: { label: string; disabled?: boolean; action: () => Promise<AcceptResult>; variant?: "primary" | "secondary"; icon?: IconName }) {
   const { busy, message, error, run } = useRunner();
   return (
     <div className="space-y-1">
       <button
         type="button"
-        className={btn.secondary}
+        className={variant === "primary" ? btn.primary : btn.secondary}
         disabled={busy || disabled}
         onClick={() =>
           run(async () => {
@@ -132,7 +152,7 @@ export function ActionButton({ label, disabled, action }: { label: string; disab
           })
         }
       >
-        {busy ? "Working…" : label}
+        {busy ? <Busy>Working…</Busy> : <>{icon ? <Icon name={icon} className="size-4" /> : null}{label}</>}
       </button>
       <Status message={message} error={error} />
     </div>

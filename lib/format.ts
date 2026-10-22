@@ -47,3 +47,10 @@ export const LIFECYCLE_LABEL: Record<string, string> = {
   CONTINUING: "Current",
   EXPIRING: "Expires",
 };
+
+/** A public block-explorer link for a transaction, only for the public test network FARJI deploys to. */
+export function explorerTxUrl(chainId: string | number | bigint, txHash: string): string | null {
+  return String(chainId) === "11155111" && /^0x[0-9a-fA-F]{64}$/.test(txHash) ? `https://sepolia.etherscan.io/tx/${txHash}` : null;
+}
+
+export const NETWORK_NAME: Record<string, string> = { "1": "Ethereum mainnet", "11155111": "Sepolia test network", "31337": "Local development network" };

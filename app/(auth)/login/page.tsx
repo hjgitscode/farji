@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AuthCard } from "@/components/auth/AuthCard";
 import { AuthForm } from "@/components/auth/AuthForm";
+import { Alert } from "@/components/ui";
 import { loginAction } from "@/lib/auth/actions";
 import { safeInternalPath } from "@/lib/auth/paths";
 
@@ -20,20 +22,22 @@ export default async function LoginPage({
   const notice = params.error ? NOTICES[params.error] : undefined; // whitelisted text only
 
   return (
-    <section className="space-y-4">
-      <h1 className="text-2xl font-semibold">Sign in</h1>
-      {notice ? (
-        <p role="alert" className="text-sm text-red-700">
-          {notice}
-        </p>
-      ) : null}
-      <AuthForm action={loginAction} submitLabel="Sign in" passwordAutoComplete="current-password" next={next} />
-      <p className="text-sm text-neutral-700">
-        New here?{" "}
-        <Link href="/signup" className="underline">
-          Create a candidate account
-        </Link>
-      </p>
-    </section>
+    <AuthCard
+      title="Welcome back"
+      description="Sign in to your FARJI account. Candidates, organisation reviewers and administrators all sign in here."
+      footer={
+        <>
+          New here?{" "}
+          <Link href="/signup" className="font-medium text-emerald-800 underline decoration-emerald-300 underline-offset-4 hover:text-emerald-900">
+            Create a candidate account
+          </Link>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        {notice ? <Alert tone="error">{notice}</Alert> : null}
+        <AuthForm action={loginAction} submitLabel="Sign in" passwordAutoComplete="current-password" next={next} />
+      </div>
+    </AuthCard>
   );
 }

@@ -2,19 +2,18 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { buildAdminTxAction, recordAdminTxAction } from "@/app/admin/actions";
-import { Alert, Badge, btn, Card, EmptyState, Facts, PageHeader, Section } from "@/components/ui";
+import { Alert, Badge, Card, EmptyState, Facts, Icon, Mono, PageHeader, Panel } from "@/components/ui";
 import { ParamTxButton } from "@/components/wallet/ParamForms";
 import { short } from "@/components/wallet/TxTable";
 import { TxButton } from "@/components/wallet/WalletButtons";
 import { requireAdmin } from "@/lib/auth/guards";
 import { getDb } from "@/lib/database/client";
 import { formatDate } from "@/lib/format";
+import { ORG_STATUS } from "@/lib/ui/status";
 import { DomainError } from "@/server/candidate/errors";
 import { adminGetOrganisation, configuredChainId } from "@/server/chain/queries";
 
 export const metadata: Metadata = { title: "Organisation" };
-
-const STATUS_LABEL: Record<string, string> = { PENDING_ONBOARDING: "Awaiting registration", ACTIVE: "Active", SUSPENDED: "Suspended" };
 
 export default async function AdminOrganisationPage({ params }: { params: Promise<{ organisationId: string }> }) {
   const { organisationId } = await params;
@@ -33,18 +32,17 @@ export default async function AdminOrganisationPage({ params }: { params: Promis
 
   return (
     <div className="space-y-8">
-      <p>
-        <Link href="/admin/organisations" className={btn.link}>
-          ← All organisations
-        </Link>
-      </p>
-      <PageHeader title={org.displayName} description={`${org.legalName} · ${org.kind.toLowerCase().replaceAll("_", " ")}`} actions={<Badge tone={org.status === "ACTIVE" ? "verified" : org.status === "SUSPENDED" ? "attention" : "pending"}>{STATUS_LABEL[org.status] ?? org.status}</Badge>} />
-      <Facts items={[["Confirmation freshness window", `${org.pulseFreshnessDays} days`], ["Network identifier", <code key="o" className="text-xs">{short(org.orgId)}</code>]]} />
+      <Link href="/admin/organisations" className="inline-flex items-center gap-1.5 text-sm font-medium text-neutral-600 hover:text-neutral-900">
+        <Icon name="chevron-right" className="size-4 rotate-180" />
+        All organisations
+      </Link>
+      <PageHeader title={org.displayName} description={`${org.legalName} · ${org.kind.toLowerCase().replaceAll("_", " ")}`} actions={<Badge tone={ORG_STATUS[org.status]?.tone ?? "neutral"} icon={org.status === "ACTIVE" ? "check" : org.status === "SUSPENDED" ? "alert" : "clock"}>{ORG_STATUS[org.status]?.label ?? org.status}</Badge>} />
+      <Card><Facts items={[["Confirmation freshness window", `${org.pulseFreshnessDays} days`], ["Network identifier", <Mono key="o">{short(org.orgId)}</Mono>]]} /></Card>
 
       {!chainId ? <Alert tone="warning">Governance actions need a network connection, which this server does not have yet.</Alert> : null}
 
       {chainId ? (
-        <Section title="Registration and status" description="Admins govern organisations. They cannot issue, end or revoke credentials.">
+        <Panel title="Registration and status" description={"Admins govern organisations. They cannot issue, end or revoke credentials."}>
           {org.status === "PENDING_ONBOARDING" ? (
             <TxButton label="Register organisation" chainId={chainId} build={build("REGISTER_ORGANISATION", org.id).bind(null, {})} record={record("REGISTER_ORGANISATION", org.id)} />
           ) : org.status === "ACTIVE" ? (
@@ -55,16 +53,16 @@ export default async function AdminOrganisationPage({ params }: { params: Promis
           ) : (
             <ParamTxButton label="Reactivate organisation" chainId={chainId} paramName="status" kind="choice" options={[{ value: "ACTIVE", label: "Reactivate" }]} build={build("SET_ORGANISATION_STATUS", org.id)} record={record("SET_ORGANISATION_STATUS", org.id)} />
           )}
-        </Section>
+        </Panel>
       ) : null}
 
-      <Section title="Members" description={`${activeMembers} active member${activeMembers === 1 ? "" : "s"} can act for this organisation. Accounts are provisioned by an administrator.`}>
+      <Panel title="Members" description={`${activeMembers} active member${activeMembers === 1 ? "" : "s"} can act for this organisation. Accounts are provisioned by an administrator.`}>
         {org.members.length === 0 ? (
           <EmptyState title="No members yet">Issuer accounts are linked to the organisation outside this page.</EmptyState>
         ) : (
           <ul className="grid gap-3 md:grid-cols-2">
             {org.members.map((m, i) => (
-              <Card as="li" key={m.id} className="flex items-center justify-between gap-2">
+              <li key={m.id} className="flex items-center justify-between gap-2 rounded-lg border border-neutral-200 p-3">
                 <div>
                   <p className="font-medium">Member {i + 1}</p>
                   <p className="text-xs text-neutral-600">
@@ -73,19 +71,19 @@ export default async function AdminOrganisationPage({ params }: { params: Promis
                   </p>
                 </div>
                 <Badge tone={m.status === "ACTIVE" ? "verified" : m.status === "INVITED" ? "pending" : "muted"}>{m.status.toLowerCase()}</Badge>
-              </Card>
+              </li>
             ))}
           </ul>
         )}
-      </Section>
+      </Panel>
 
       {chainId && org.status === "ACTIVE" ? (
-        <Section title="Authorise an issuer wallet" description="A wallet can be authorised once, ever. Use a fresh wallet that has never been an issuer wallet.">
+        <Panel title="Authorise an issuer wallet" description={"A wallet can be authorised once, ever. Use a fresh wallet that has never been an issuer wallet."}>
           <ParamTxButton label="Authorise wallet" chainId={chainId} paramName="wallet" placeholder="0x… issuer wallet address" build={build("AUTHORISE_ISSUER_KEY", org.id)} record={record("AUTHORISE_ISSUER_KEY", org.id)} />
-        </Section>
+        </Panel>
       ) : null}
 
-      <Section title="Issuer wallets">
+      <Panel title="Issuer wallets">
         {org.issuerKeys.length === 0 ? (
           <EmptyState title="No wallets yet">Authorise a wallet so an issuer can sign for this organisation.</EmptyState>
         ) : (
@@ -93,10 +91,10 @@ export default async function AdminOrganisationPage({ params }: { params: Promis
             {org.issuerKeys.map((k) => {
               const open = !k.validUntil && !k.compromisedAt;
               return (
-                <Card as="li" key={k.id} className="space-y-3">
+                <li key={k.id} className="space-y-3 rounded-lg border border-neutral-200 p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="break-all font-mono text-sm">{k.walletAddress}</p>
+                      <Mono>{k.walletAddress}</Mono>
                       <p className="text-xs text-neutral-600">
                         From {formatDate(k.validFrom)}
                         {k.validUntil ? ` until ${formatDate(k.validUntil)}` : ""} · authorisation {k.authoriseTransaction?.status === "FINALIZED" ? "final" : "not final yet"}
@@ -126,12 +124,12 @@ export default async function AdminOrganisationPage({ params }: { params: Promis
                       </div>
                     </details>
                   ) : null}
-                </Card>
+                </li>
               );
             })}
           </ul>
         )}
-      </Section>
+      </Panel>
     </div>
   );
 }

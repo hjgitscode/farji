@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AuthCard } from "@/components/auth/AuthCard";
 import { AuthForm } from "@/components/auth/AuthForm";
 import { signupAction } from "@/lib/auth/actions";
 
@@ -7,18 +8,20 @@ export const metadata: Metadata = { title: "Create account" };
 
 export default function SignupPage() {
   return (
-    <section className="space-y-4">
-      <h1 className="text-2xl font-semibold">Create a candidate account</h1>
-      <p className="max-w-md text-sm text-neutral-700">
-        This creates a candidate account. Organisation reviewers are invited by an administrator.
-      </p>
+    <AuthCard
+      title="Create your profile"
+      icon="user"
+      description="Start a candidate account to build your professional record and ask institutions to confirm it. Organisation reviewers are invited by an administrator."
+      footer={
+        <>
+          Already have an account?{" "}
+          <Link href="/login" className="font-medium text-emerald-800 underline decoration-emerald-300 underline-offset-4 hover:text-emerald-900">
+            Sign in
+          </Link>
+        </>
+      }
+    >
       <AuthForm action={signupAction} submitLabel="Create account" passwordAutoComplete="new-password" />
-      <p className="text-sm text-neutral-700">
-        Already have an account?{" "}
-        <Link href="/login" className="underline">
-          Sign in
-        </Link>
-      </p>
-    </section>
+    </AuthCard>
   );
 }

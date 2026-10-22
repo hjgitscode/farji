@@ -13,7 +13,9 @@ export function TooManyRequests() {
 export function VerificationUnavailable() {
   return (
     <div className="mx-auto max-w-xl py-8">
-      <EmptyState title="Verification is temporarily unavailable">We cannot check records right now. Nothing is being shown as verified. Please try again later.</EmptyState>
+      <EmptyState title="Verification is temporarily unavailable" icon="clock">
+        We cannot check records right now. Nothing is being shown as verified. Please try again later.
+      </EmptyState>
     </div>
   );
 }

@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AuthCard } from "@/components/auth/AuthCard";
+import { btn } from "@/components/ui";
 import { signOutAction } from "@/lib/auth/actions";
 
 export const metadata: Metadata = { title: "Access denied" };
@@ -21,21 +23,17 @@ export default async function AccessDeniedPage({
   const message = (reason && Object.hasOwn(MESSAGES, reason) ? MESSAGES[reason] : undefined) ?? MESSAGES.default;
 
   return (
-    <section className="space-y-4">
-      <h1 className="text-2xl font-semibold">Access denied</h1>
-      <p role="alert" className="text-neutral-700">
-        {message}
-      </p>
-      <div className="flex gap-4 text-sm">
-        <Link href="/" className="underline">
+    <AuthCard title="Access denied" icon="lock" description={<span role="alert">{message}</span>}>
+      <div className="flex flex-wrap gap-3">
+        <Link href="/" className={btn.secondary}>
           Home
         </Link>
         <form action={signOutAction}>
-          <button type="submit" className="underline">
+          <button type="submit" className={btn.dark}>
             Sign out
           </button>
         </form>
       </div>
-    </section>
+    </AuthCard>
   );
 }
