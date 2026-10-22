@@ -1,4 +1,4 @@
-# Phase 16 recovery checkpoint (non-secret state only)
+﻿# Phase 16 recovery checkpoint (non-secret state only)
 
 Phase 16 = security, reliability and deployment hardening. No change to lifecycle semantics, derived states, CohortProof/ProofPulse
 architecture or the deployed (non-upgradeable) registry. No UI redesign. If the conversation is compacted: read this file,
@@ -19,8 +19,8 @@ docs/PHASE15_STATE.md, docs/ROADMAP.md, run `git status` / `git log --oneline -1
 | F | Application security review | done: sign-in/sign-up per-client brake added (RULES.signIn/signUp); other areas reviewed, no change |
 | G | Secret / env safety | done: tracked files + full git history scanned; 2 hits are test sentinels |
 | H | RPC / chain reliability | done: syncPending error result now reports the row's real status (+ DB test); daily-only cron = human action |
-| I | Final gate | pending |
-| J | Docs (PHASE16_SECURITY.md, ROADMAP, CLAUDE.md, DEPLOYMENT) | pending |
+| I | Final gate | done (all gates pass) |
+| J | Docs (PHASE16_SECURITY.md, ROADMAP, CLAUDE.md, DEPLOYMENT) | done |
 
 ## Checkpoints
 - P16-0: Phase 15 docs committed (`d219487`) and pushed; admin email redacted from PHASE15_STATE.md before commit.
@@ -40,6 +40,10 @@ docs/PHASE15_STATE.md, docs/ROADMAP.md, run `git status` / `git log --oneline -1
   `chain:check` all ok. Pending: test:db (running), test:chain (after test:db; same database). Docs written: docs/PHASE16_SECURITY.md,
   ROADMAP row/section 16, CLAUDE.md status, DEPLOYMENT sections 2/3/7/8. Next: finish gates, commit, push, verify production headers.
 
+- P16-5: PHASE 16 COMPLETE. test:db 271/271, test:chain 22/22. Committed `47c9af6` and pushed; Vercel production redeployed from master;
+  production verified (CSP + headers live, 0 CSP violations in headless Chrome, routes as expected, bundle PERMANENT_VALID, no private fields).
+  Next phase: UI/UX polish and final presentation/demo preparation (not started).
+
 ## Human-only actions (collected; do not interrupt the run)
 - GitHub repository settings: add secrets FARJI_APP_URL (https://farji.vercel.app) and FARJI_SYNC_TOKEN (same value as Vercel), and variable
   FARJI_SYNC_ENABLED=true, so .github/workflows/chain-sync.yml finalizes transactions every 10 minutes (Vercel Hobby cron is daily only).
@@ -47,4 +51,4 @@ docs/PHASE15_STATE.md, docs/ROADMAP.md, run `git status` / `git log --oneline -1
   feature per Supabase; not reachable with available tooling (no management token).
 
 ## Next step
-- E contract review (hardhat tests, Slither if installable), then F/G/H reviews, final gate, docs.
+- None for Phase 16. Remaining: the two human-only actions above; then the UI/UX phase.

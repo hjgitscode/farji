@@ -202,6 +202,15 @@ redacted.
 (server refusals), `tests/deploy/config.test.ts` (auth brakes), `tests/deploy/structural.test.ts` (headers wiring),
 `tests/db/chain-sync.test.ts` (sweep status on RPC failure).
 
+## Final gate and production verification
+
+- Gate (2026-10-22): lint, typecheck, `db:validate`, unit 555 passed + 1 skipped, DB 271/271 (rollback-only, real Supabase),
+  contracts 56 passing, real-local-node chain 22/22, production build, `chain:check` 10/10 against Sepolia.
+- Production after deploying commit `47c9af6`: every response carries the CSP and header set above; headless Chrome loads `/login` and
+  `/verify/0xadb1…34ba` with 0 CSP violations; `/api/health` 200, `/login` 200, `/verify` 200, `/p/nobody-here` 404, `/candidate` 307 to
+  sign-in, `/api/chain/sync` without token 401; the Phase 15 smoke credential's bundle is still `PERMANENT_VALID` (20 PASS, revocation
+  not applicable) with no salt, nonce or email.
+
 ## Deferred (non-blocking)
 
 - Nonce-based CSP without `'unsafe-inline'` scripts (with the UI phase; see S-02).
