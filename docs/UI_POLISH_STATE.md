@@ -1,4 +1,4 @@
-# Final product UI/UX pass: recovery checkpoint (non-secret)
+﻿# Final product UI/UX pass: recovery checkpoint (non-secret)
 
 Presentation layer only. No change to contracts, lifecycle semantics, database, auth/RBAC, Merkle/CohortProof/ProofPulse, finality,
 server-action contracts or the verification engine. Phases 0-16 are complete (see docs/PHASE16_STATE.md). If the conversation is compacted:
@@ -26,7 +26,7 @@ read this file, docs/PHASE16_STATE.md, `git status`, `git log --oneline -8`, and
 - [x] Loading skeletons (role segments + verifier)
 - [x] Build, visual QA (headless Chrome: desktop 1440 and small-screen 500; real verifier on the smoke credential)
 - [x] Gate: lint, typecheck, build, unit 555/555, DB product+verification 39/39 (no test needed changing)
-- [ ] Commit, push, production verification (routes, CSP, PERMANENT_VALID)
+- [x] Commit 4729208, pushed, production verified (routes, CSP 0 violations, fonts/CSS 200, PERMANENT_VALID 20 PASS)
 
 ## Notes
 - `Anchor` on Credentials is now a plain "Queued for anchor" status with a "Next: Go to Batches" panel; the real CTA is "Anchor this batch" on Batches.
