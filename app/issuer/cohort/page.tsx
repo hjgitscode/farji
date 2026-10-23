@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { buildIssuerTxAction, recordIssuerTxAction, sealBatchAction } from "@/app/issuer/chain-actions";
 import { Alert, Badge, Card, Disclosure, EmptyState, Facts, Icon, Mono, PageHeader, Stepper, type StepState } from "@/components/ui";
-import { CohortExplainer } from "@/components/issuer/ProofExplainers";
+import { BatchLeaves, CohortExplainer } from "@/components/issuer/ProofExplainers";
 import { short } from "@/components/wallet/TxTable";
 import { ActionButton, TxButton } from "@/components/wallet/WalletButtons";
 import { requireIssuer } from "@/lib/auth/guards";
@@ -76,6 +76,7 @@ export default async function IssuerCohortPage() {
                     </Badge>
                   </div>
 
+                  <BatchLeaves count={b._count.leaves} root={b.batchRoot} />
                   <Stepper label="Batch progress" steps={stepsFor(b.status)} />
 
                   {chainId && b.status === "SEALED" ? (

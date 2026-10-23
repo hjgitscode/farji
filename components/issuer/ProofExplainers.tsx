@@ -313,3 +313,24 @@ export function PulseExplainer() {
     </section>
   );
 }
+
+/** This batch, drawn from its real credential count: n signed credentials become n leaves under one Merkle root. */
+export function BatchLeaves({ count, root }: { count: number; root: string | null }) {
+  const n = Math.max(1, Math.min(count, 12));
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2.5" role="img" aria-label={`${count} credentials form ${count} leaves under one Merkle root`}>
+      <div className="flex items-center gap-1.5">
+        {Array.from({ length: n }, (_, i) => (
+          <span key={i} className="flex h-7 w-6 items-center justify-center rounded-sm border border-emerald-600 bg-emerald-50 text-emerald-700">
+            <Icon name="check" className="size-3.5" strokeWidth={2.75} />
+          </span>
+        ))}
+        {count > n ? <span className="text-xs text-neutral-500">+{count - n}</span> : null}
+      </div>
+      <span className="text-xs font-medium text-neutral-500">
+        {count} leaf{count === 1 ? "" : "s"} <Icon name="arrow-right" className="mx-1 inline size-3.5" /> off-chain Merkle tree <Icon name="arrow-right" className="mx-1 inline size-3.5" />
+      </span>
+      <span className="rounded-md bg-emerald-700 px-2.5 py-1 text-xs font-semibold text-white">{root ? `Root ${root.slice(0, 8)}…${root.slice(-4)}` : "Root (when closed)"}</span>
+    </div>
+  );
+}
