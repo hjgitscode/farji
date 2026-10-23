@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { createOrganisationAction } from "@/app/admin/actions";
+import { SubmitButton } from "@/components/admin/SubmitButton";
 import { Alert, Badge, btn, Disclosure, EmptyState, Icon, inputClass, PageHeader } from "@/components/ui";
 import { requireAdmin } from "@/lib/auth/guards";
 import { getDb } from "@/lib/database/client";
@@ -21,14 +22,10 @@ export default async function AdminOrganisationsPage({ searchParams }: { searchP
       <PageHeader title="Organisations" description="Institutions that can confirm records." />
 
       <div className="space-y-6">
-        <Disclosure summary={<span className="inline-flex items-center gap-2"><Icon name="plus" className="size-4 text-emerald-700" />Add an organisation</span>} defaultOpen={Boolean(error)}>
+        {error ? <Alert tone="error">{error}</Alert> : null}
+        <Disclosure summary={<span className="inline-flex items-center gap-2"><Icon name="plus" className="size-4 text-emerald-700" />Add an organisation</span>} defaultOpen>
           <form action={createOrganisationAction} className="grid max-w-2xl gap-3 sm:grid-cols-2">
             <p className="text-sm text-neutral-600 sm:col-span-2">It starts as awaiting registration. Registering it with your wallet activates it.</p>
-            {error ? (
-              <div className="sm:col-span-2">
-                <Alert tone="error">{error}</Alert>
-              </div>
-            ) : null}
             <input name="legalName" required placeholder="Legal name" aria-label="Legal name" className={inputClass} />
             <input name="displayName" required placeholder="Display name" aria-label="Display name" className={inputClass} />
             <input name="slug" required placeholder="short-name (lowercase-with-hyphens)" aria-label="Short name" className={inputClass} />
@@ -40,9 +37,7 @@ export default async function AdminOrganisationsPage({ searchParams }: { searchP
               <option value="OTHER">Other</option>
             </select>
             <div className="sm:col-span-2">
-              <button type="submit" className={btn.primary}>
-                Add organisation
-              </button>
+              <SubmitButton pendingLabel="Adding organisation…">Add organisation</SubmitButton>
             </div>
           </form>
         </Disclosure>

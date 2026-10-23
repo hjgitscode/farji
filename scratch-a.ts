@@ -1,0 +1,24 @@
+import { randomBytes } from "node:crypto";
+import { writeFileSync } from "node:fs";
+import { config } from "dotenv";
+config({ path: ".env.local", quiet: true });
+config({ quiet: true });
+import { getDb } from "@/lib/database/client";
+import { loadActor } from "@/lib/auth/authorize";
+const db = getDb();
+const SB = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const KEY = (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)!;
+const EMAIL = "qa.tmp.admin@notsofarji.demo";
+(async () => {
+  const pw = randomBytes(12).toString("base64url") + "!9a";
+  const r = await fetch(`${SB}/auth/v1/signup`, { method: "POST", headers: { apikey: KEY, "content-type": "application/json" }, body: JSON.stringify({ email: EMAIL, password: pw }) });
+  if (!(await r.json() as { access_token?: string }).access_token) throw new Error("signup");
+  const id = (await db.$queryRaw<{ id: string }[]>`select id from auth.users where email = ${EMAIL}`)[0].id;
+  const l = await loadActor(id, db);
+  if (l.status !== "OK") throw new Error("load");
+  await db.user.update({ where: { id: l.actor.userId }, data: { role: "ADMIN" } });
+  const tok = await (await fetch(`${SB}/auth/v1/token?grant_type=password`, { method: "POST", headers: { apikey: KEY, "content-type": "application/json" }, body: JSON.stringify({ email: EMAIL, password: pw }) })).text();
+  const ref = new URL(SB).hostname.split(".")[0];
+  writeFileSync(process.argv[2], `sb-${ref}-auth-token=base64-${Buffer.from(tok).toString("base64url")}`);
+  console.log("ok");
+})().then(() => db.$disconnect()).catch((e) => { console.error("ERR", e.message); process.exit(1); });
