@@ -164,7 +164,7 @@ export function CohortExplainer() {
           <text x="26" y="308" fontSize="11" fontWeight="700" letterSpacing="1.2" className={`fill-neutral-500 ${FONT}`}>
             ONE STUDENT PROVES INCLUSION · no other student is revealed
           </text>
-          <Chip x={26} y={324} w={150} text="Student 38's degree" tone="ok" />
+          <Chip x={26} y={324} w={158} text="Student #37's degree" tone="ok" />
           <text x="190" y="344" textAnchor="middle" fontSize="16" className={`fill-neutral-400 ${FONT}`}>
             +
           </text>

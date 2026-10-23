@@ -8,7 +8,7 @@ import { requireIssuer } from "@/lib/auth/guards";
 import { getDb } from "@/lib/database/client";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { BATCH_STATUS } from "@/lib/ui/status";
-import { configuredChainId, issuerCohortOverview } from "@/server/chain/queries";
+import { configuredChainId, issuerCohortOverview, issuerListTransactions } from "@/server/chain/queries";
 
 export const metadata: Metadata = { title: "Credential batches" };
 
@@ -22,11 +22,14 @@ const stepsFor = (status: "OPEN" | "SEALED" | "ANCHORED"): { label: string; stat
 
 export default async function IssuerCohortPage() {
   const actor = await requireIssuer("/issuer/cohort");
-  const batches = await issuerCohortOverview(getDb(), actor);
+  const [batches, txs] = await Promise.all([issuerCohortOverview(getDb(), actor), issuerListTransactions(getDb(), actor)]);
+  // The newest anchor transaction per batch decides what the batch shows; a valid one blocks a second submission.
+  const anchorTx = new Map<string, { status: string }>();
+  for (const t of [...txs].reverse()) if (t.purpose === "ANCHOR_COHORT" && t.targetType === "COHORT_BATCH") anchorTx.set(t.targetId, t);
   const chainId = configuredChainId();
   const open = batches.find((b) => b.status === "OPEN");
   const waiting = open?._count.leaves ?? 0;
-  const ready = batches.filter((b) => b.status === "SEALED");
+  const ready = batches.filter((b) => b.status === "SEALED" && anchorTx.get(b.id)?.status !== "PENDING" && anchorTx.get(b.id)?.status !== "CONFIRMED");
   return (
     <div>
       <PageHeader
@@ -59,7 +62,15 @@ export default async function IssuerCohortPage() {
         ) : (
           <ul className="space-y-4">
             {batches.map((b) => {
-              const s = BATCH_STATUS[b.status];
+              const base = BATCH_STATUS[b.status];
+              const tx = anchorTx.get(b.id);
+              const inFlight = b.status === "SEALED" && (tx?.status === "PENDING" || tx?.status === "CONFIRMED");
+              const failed = b.status === "SEALED" && (tx?.status === "FAILED" || tx?.status === "DROPPED");
+              const s = inFlight
+                ? { tone: "pending" as const, label: tx?.status === "CONFIRMED" ? "Waiting for finality" : "Anchor transaction submitted" }
+                : failed
+                  ? { tone: "danger" as const, label: "Anchor failed — retry" }
+                  : base;
               return (
                 <Card as="li" key={b.id} className={`space-y-4 ${b.status === "SEALED" ? "border-amber-300 bg-gradient-to-br from-white to-amber-50/40" : ""}`}>
                   <div className="flex flex-wrap items-center justify-between gap-2">
@@ -71,7 +82,7 @@ export default async function IssuerCohortPage() {
                         {b.batchRoot ? <> · fingerprint <Mono>{short(b.batchRoot)}</Mono></> : null}
                       </p>
                     </div>
-                    <Badge tone={s.tone} icon={b.status === "ANCHORED" ? "check" : b.status === "SEALED" ? "anchor" : "clock"}>
+                    <Badge tone={s.tone} icon={b.status === "ANCHORED" ? "check" : inFlight ? "clock" : failed ? "x" : b.status === "SEALED" ? "anchor" : "clock"}>
                       {s.label}
                     </Badge>
                   </div>
@@ -79,7 +90,7 @@ export default async function IssuerCohortPage() {
                   <BatchLeaves count={b._count.leaves} root={b.batchRoot} />
                   <Stepper label="Batch progress" steps={stepsFor(b.status)} />
 
-                  {chainId && b.status === "SEALED" ? (
+                  {chainId && b.status === "SEALED" && !inFlight ? (
                     <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-emerald-200 bg-emerald-50/70 p-4">
                       <p className="max-w-md text-sm text-neutral-800">
                         <span className="font-medium">This batch is closed and ready.</span> Anchoring records it on the network. You will confirm one transaction in your wallet; the batch counts as evidence once it is final.

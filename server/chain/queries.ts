@@ -33,6 +33,7 @@ export function configuredChainInfo(): { chainId: string; registry: string } | n
 
 const TX_SELECT = {
   id: true,
+  targetId: true,
   txHash: true,
   purpose: true,
   targetType: true,
